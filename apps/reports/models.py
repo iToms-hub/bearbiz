@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from django.db import models
+
+
+class ParseStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    PARSED = "parsed", "Parsed"
+    FAILED = "failed", "Failed"
+
+
+def report_upload_path(instance: "ReportUpload", filename: str) -> str:
+    return f"reports/weekly-sales/{filename}"
+
+
+class ReportUpload(models.Model):
+    """Stored weekly report PDF and its ingestion state."""
+
+    source_file = models.FileField(upload_to=report_upload_path)
+    source_name = models.CharField(max_length=255)
+    parse_status = models.CharField(
+        max_length=16,
+        choices=ParseStatus.choices,
+        default=ParseStatus.PENDING,
+        db_index=True,
+    )
+    parse_error = models.TextField(blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    parsed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-uploaded_at", "-id"]
+        verbose_name = "report upload"
+        verbose_name_plural = "report uploads"
+
+    def __str__(self) -> str:
+        return f"{self.source_name} ({self.parse_status})"
+
+
+class WeeklySalesSummary(models.Model):
+    """Normalized weekly sales data extracted from a report upload."""
+
+    report_upload = models.OneToOneField(
+        ReportUpload,
+        on_delete=models.CASCADE,
+        related_name="weekly_sales_summary",
+    )
+    fiscal_year = models.PositiveSmallIntegerField()
+    fiscal_week = models.PositiveSmallIntegerField()
+    fiscal_period_start = models.DateField(null=True, blank=True)
+    fiscal_period_end = models.DateField(null=True, blank=True)
+    raw_json = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-fiscal_year", "-fiscal_week", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fiscal_year", "fiscal_week"],
+                name="unique_weekly_sales_summary_fiscal_period",
+            )
+        ]
+        verbose_name = "weekly sales summary"
+        verbose_name_plural = "weekly sales summaries"
+
+    def __str__(self) -> str:
+        return f"Weekly sales FY{self.fiscal_year} W{self.fiscal_week:02d}"
+
+    @property
+    def raw_data(self) -> dict:
+        return self.raw_json

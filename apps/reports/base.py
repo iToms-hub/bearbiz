@@ -17,6 +17,7 @@ class ParsedReport:
     period_start: str | None = None
     period_end: str | None = None
     payload: dict[str, Any] = field(default_factory=dict)
+    raw_rows: list[dict[str, Any]] = field(default_factory=list)
 
 
 class ReportModule(Protocol):

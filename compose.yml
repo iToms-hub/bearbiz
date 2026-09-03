@@ -6,6 +6,8 @@ services:
       DJANGO_SETTINGS_MODULE: bearbiz.settings
       DEBUG: ${DEBUG:-1}
       SECRET_KEY: ${SECRET_KEY:-dev-only-secret-key}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
       POSTGRES_DB: ${POSTGRES_DB:-bearbiz}
       POSTGRES_USER: ${POSTGRES_USER:-bearbiz}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bearbiz}
@@ -14,7 +16,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      - "${WEB_PORT:-8002}:8000"
     depends_on:
       db:
         condition: service_healthy

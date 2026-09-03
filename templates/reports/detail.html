@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Report upload {{ upload.pk }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root { color-scheme: light dark; }
+      body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.45; }
+      .panel { border: 1px solid #8886; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+      .muted { opacity: 0.75; }
+      pre { white-space: pre-wrap; word-break: break-word; }
+      a { text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <p><a href="{% url 'reports:history' %}">← Back to uploads</a></p>
+
+    <h1>{{ upload.source_name }}</h1>
+    <p class="muted">Uploaded at {{ upload.uploaded_at }} · Status {{ upload.parse_status }}</p>
+
+    <section class="panel">
+      <h2>Source PDF</h2>
+      <p><a href="{% url 'reports:download' upload.pk %}">Download original PDF</a></p>
+    </section>
+
+    <section class="panel">
+      <h2>Parse details</h2>
+      {% if summary %}
+        <p><strong>Fiscal year:</strong> {{ summary.fiscal_year }}</p>
+        <p><strong>Fiscal week:</strong> {{ summary.fiscal_week }}</p>
+        <p><strong>Period:</strong> {{ summary.fiscal_period_start }} → {{ summary.fiscal_period_end }}</p>
+        <h3>Raw JSON</h3>
+        <pre>{{ summary.raw_json }}</pre>
+      {% elif upload.parse_error %}
+        <p class="muted">{{ upload.parse_error }}</p>
+      {% else %}
+        <p class="muted">No parsed summary yet.</p>
+      {% endif %}
+    </section>
+  </body>
+</html>
