@@ -48,7 +48,28 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
 
         history_response = client.get(reverse("reports:history"))
         assert history_response.status_code == 200
-        assert "week-1-sales.pdf" in history_response.content.decode()
+        history_html = history_response.content.decode()
+        assert "week-1-sales.pdf" in history_html
+        assert "Report 1" in history_html
+        assert "Report Types" in history_html
+        assert "Settings" in history_html
+
+        report_six_response = client.get(reverse("reports:report-number", kwargs={"number": 6}))
+        assert report_six_response.status_code == 200
+        report_six_html = report_six_response.content.decode()
+        assert "Report 6" in report_six_html
+        assert "Report 1" in report_six_html
+
+        settings_response = client.get(reverse("settings:index"))
+        assert settings_response.status_code == 200
+        settings_html = settings_response.content.decode()
+        assert "General settings" in settings_html
+        assert "Fiscal year" in settings_html
+        assert "AI integration" in settings_html
+
+        fiscal_settings_response = client.get(reverse("settings:section", kwargs={"slug": "fiscal"}))
+        assert fiscal_settings_response.status_code == 200
+        assert "Fiscal year settings" in fiscal_settings_response.content.decode()
 
         detail_response = client.get(reverse("reports:detail", args=[record.pk]))
         assert detail_response.status_code == 200

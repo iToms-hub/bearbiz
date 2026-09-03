@@ -1,91 +1,56 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Bearbiz 6-week dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-      :root { color-scheme: light dark; }
-      body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.45; }
-      .toolbar { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; margin-bottom: 1.5rem; }
-      .panel { border: 1px solid #8886; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
-      .muted { opacity: 0.75; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { border-bottom: 1px solid #8884; padding: 0.5rem; text-align: left; vertical-align: top; }
-      .trend { font-variant-numeric: tabular-nums; }
-      .week-list { display: flex; gap: 0.75rem; flex-wrap: wrap; padding: 0; list-style: none; }
-      .week-list li { border: 1px solid #8885; border-radius: 999px; padding: 0.35rem 0.7rem; }
-      .current { font-weight: 700; }
-      .empty { padding: 1rem; background: #8881; border-radius: 12px; }
-      label { display: block; font-size: 0.9rem; margin-bottom: 0.25rem; }
-      input, select { min-width: 14rem; padding: 0.5rem; }
-      button { padding: 0.55rem 0.9rem; }
-    </style>
-  </head>
-  <body>
-    <h1>6-week dashboard</h1>
-    <p class="muted">Current week plus the previous five weeks, with all-weeks and selected-weeks filtering.</p>
+{% extends "base.html" %}
+{% block title %}Bearbiz dashboard{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h2>6-week trend overview</h2>
+    {% if dashboard.trends %}
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Total</th>
+            <th>6-week trend</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for trend in dashboard.trends.values %}
+            <tr>
+              <td>{{ trend.label }}</td>
+              <td>{{ trend.total }}</td>
+              <td>
+                {% for point in trend.points %}
+                  <span title="{{ point.week_key }}">{{ point.value }}</span>{% if not forloop.last %} · {% endif %}
+                {% endfor %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty">{{ empty_state }}</div>
+    {% endif %}
+  </section>
 
-    <form class="toolbar" method="get">
-      <div>
-        <label for="weeks">Weeks</label>
-        <select name="weeks" id="weeks">
-          <option value="all" {% if selection == "all" %}selected{% endif %}>All weeks</option>
-          <option value="selected" {% if selection == "selected" %}selected{% endif %}>Selected weeks</option>
-        </select>
-      </div>
-      <div>
-        <label for="format">Format</label>
-        <select name="format" id="format">
-          <option value="html">HTML</option>
-          <option value="json">JSON</option>
-        </select>
-      </div>
-      <button type="submit">Apply</button>
-    </form>
-
-    <section class="panel">
+  <section class="grid">
+    <div class="panel">
       <h2>Week window</h2>
-      <ul class="week-list">
+      <ul>
         {% for week in dashboard.weeks %}
-          <li class="{% if week.is_current %}current{% endif %}">{{ week.label }}</li>
+          <li>{% if week.is_current %}<strong>{{ week.label }}</strong>{% else %}{{ week.label }}{% endif %}</li>
         {% endfor %}
       </ul>
-    </section>
-
-    <section class="panel">
-      <h2>Metric trends</h2>
-      {% if dashboard.trends %}
-        <table>
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>Total</th>
-              <th class="trend">6-week trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for trend in dashboard.trends.values %}
-              <tr>
-                <td>{{ trend.label }}</td>
-                <td>{{ trend.total }}</td>
-                <td class="trend">
-                  {% for point in trend.points %}
-                    <span title="{{ point.week_key }}">{{ point.value }}</span>{% if not forloop.last %} · {% endif %}
-                  {% endfor %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    </div>
+    <div class="panel">
+      <h2>Recent uploads</h2>
+      {% if uploads %}
+        <ul>
+          {% for upload in uploads %}
+            <li><a href="{% url 'reports:detail' upload.pk %}">{{ upload.source_name }}</a> · {{ upload.parse_status }}</li>
+          {% endfor %}
+        </ul>
       {% else %}
-        <div class="empty">{{ empty_state }}</div>
+        <p class="muted">No uploads yet.</p>
       {% endif %}
-    </section>
-
-    <section class="panel">
-      <h2>Selected weeks</h2>
-      <p class="muted">{% if dashboard.selected_week_keys %}{{ dashboard.selected_week_keys|join:", " }}{% else %}No weeks selected yet.{% endif %}</p>
-    </section>
-  </body>
-</html>
+    </div>
+  </section>
+{% endblock %}

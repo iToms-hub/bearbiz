@@ -1,71 +1,50 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Weekly sales reports</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-      :root { color-scheme: light dark; }
-      body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.45; }
-      .panel { border: 1px solid #8886; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
-      .muted { opacity: 0.75; }
-      label { display: block; font-size: 0.9rem; margin-bottom: 0.25rem; }
-      input { min-width: 18rem; padding: 0.5rem; }
-      button { padding: 0.55rem 0.9rem; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { border-bottom: 1px solid #8884; padding: 0.5rem; text-align: left; vertical-align: top; }
-      .error { color: #c00; }
-    </style>
-  </head>
-  <body>
-    <h1>Weekly sales report uploads</h1>
-    <p class="muted">Upload a weekly sales PDF, then open its detail page to download the original file again. Revolutionary stuff.</p>
+{% extends "base.html" %}
+{% block title %}Weekly sales reports{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h2>Upload PDF</h2>
+    <form method="post" enctype="multipart/form-data" action="{% url 'reports:upload' %}">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <p>
+        <label for="{{ form.source_file.id_for_label }}">PDF file</label>
+        {{ form.source_file }}
+        {% if form.source_file.errors %}
+          <span class="error">{{ form.source_file.errors|striptags }}</span>
+        {% endif %}
+      </p>
+      <button type="submit">Upload weekly sales PDF</button>
+    </form>
+  </section>
 
-    <section class="panel">
-      <h2>Upload PDF</h2>
-      <form method="post" enctype="multipart/form-data" action="{% url 'reports:upload' %}">
-        {% csrf_token %}
-        {{ form.non_field_errors }}
-        <p>
-          <label for="{{ form.source_file.id_for_label }}">PDF file</label>
-          {{ form.source_file }}
-          {% if form.source_file.errors %}
-            <span class="error">{{ form.source_file.errors|striptags }}</span>
-          {% endif %}
-        </p>
-        <button type="submit">Upload weekly sales PDF</button>
-      </form>
-    </section>
-
-    <section class="panel">
-      <h2>History</h2>
-      {% if uploads %}
-        <table>
-          <thead>
+  <section class="panel">
+    <h2>History</h2>
+    {% if uploads %}
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Status</th>
+            <th>Uploaded</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for upload in uploads %}
             <tr>
-              <th>File</th>
-              <th>Status</th>
-              <th>Uploaded</th>
-              <th>Actions</th>
+              <td>{{ upload.source_name }}</td>
+              <td>{{ upload.parse_status }}</td>
+              <td>{{ upload.uploaded_at }}</td>
+              <td>
+                <a href="{% url 'reports:detail' upload.pk %}">View</a>
+                · <a href="{% url 'reports:download' upload.pk %}">Download PDF</a>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {% for upload in uploads %}
-              <tr>
-                <td>{{ upload.source_name }}</td>
-                <td>{{ upload.parse_status }}</td>
-                <td>{{ upload.uploaded_at }}</td>
-                <td>
-                  <a href="{% url 'reports:detail' upload.pk %}">View</a>
-                  · <a href="{% url 'reports:download' upload.pk %}">Download PDF</a>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% else %}
-        <p class="muted">No report uploads yet.</p>
-      {% endif %}
-    </section>
-  </body>
-</html>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No report uploads yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

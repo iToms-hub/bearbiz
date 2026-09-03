@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{{ page_title|default:"Bearbiz" }}{% endblock %}</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --border: #8885;
+        --border-strong: #8888;
+        --surface: color-mix(in srgb, Canvas 94%, CanvasText 6%);
+        --surface-soft: color-mix(in srgb, Canvas 90%, CanvasText 10%);
+        --text-muted: color-mix(in srgb, CanvasText 65%, Canvas 35%);
+        --accent: #5b7cfa;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        line-height: 1.45;
+        background: Canvas;
+        color: CanvasText;
+      }
+      a { color: inherit; }
+      .app-shell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 17rem minmax(0, 1fr);
+      }
+      .app-shell[data-sidebar-collapsed="true"] {
+        grid-template-columns: 4.5rem minmax(0, 1fr);
+      }
+      .sidebar {
+        position: sticky;
+        top: 0;
+        align-self: start;
+        min-height: 100vh;
+        padding: 1rem;
+        border-right: 1px solid var(--border);
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        overflow: hidden;
+      }
+      .sidebar-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-height: 2.5rem;
+      }
+      .sidebar-toggle {
+        border: 1px solid var(--border-strong);
+        border-radius: 999px;
+        background: Canvas;
+        color: CanvasText;
+        width: 2.25rem;
+        height: 2.25rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+        cursor: pointer;
+      }
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+        min-width: 0;
+      }
+      .brand strong { font-size: 1rem; }
+      .brand span, .muted { color: var(--text-muted); }
+      .sidebar nav {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+      }
+      .sidebar a,
+      .sidebar .sidebar-link {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.7rem 0.8rem;
+        border-radius: 0.9rem;
+        text-decoration: none;
+        border: 1px solid transparent;
+      }
+      .sidebar a.active,
+      .sidebar .sidebar-link.active {
+        background: color-mix(in srgb, var(--accent) 16%, Canvas);
+        border-color: color-mix(in srgb, var(--accent) 45%, Canvas);
+        font-weight: 650;
+      }
+      .app-shell[data-sidebar-collapsed="true"] .sidebar .label,
+      .app-shell[data-sidebar-collapsed="true"] .sidebar .section-copy,
+      .app-shell[data-sidebar-collapsed="true"] .sidebar .brand span {
+        display: none;
+      }
+      .sidebar small, .eyebrow { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; }
+      main {
+        padding: 1.5rem;
+        min-width: 0;
+      }
+      .page-header {
+        display: flex;
+        gap: 1rem;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+      }
+      .page-header h1 {
+        margin: 0.2rem 0 0.4rem;
+        font-size: clamp(1.8rem, 3vw, 2.6rem);
+      }
+      .page-header p { margin: 0; }
+      .page-header .page-header-copy { min-width: 0; }
+      .section-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 1rem 0 1.25rem;
+      }
+      .tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.55rem 0.85rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        text-decoration: none;
+        background: var(--surface-soft);
+      }
+      .tab.active,
+      .tab[aria-current="page"] {
+        font-weight: 650;
+        border-color: color-mix(in srgb, var(--accent) 50%, var(--border-strong));
+        background: color-mix(in srgb, var(--accent) 16%, Canvas);
+      }
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: var(--surface);
+      }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border-bottom: 1px solid var(--border); padding: 0.55rem; text-align: left; vertical-align: top; }
+      .empty { padding: 1rem; background: color-mix(in srgb, CanvasText 5%, Canvas); border-radius: 12px; }
+      label { display: block; font-size: 0.9rem; margin-bottom: 0.25rem; }
+      input, select { min-width: 14rem; padding: 0.5rem; }
+      button, .page-action {
+        padding: 0.55rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        background: Canvas;
+        color: CanvasText;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+      .page-action.primary {
+        background: color-mix(in srgb, var(--accent) 18%, Canvas);
+        border-color: color-mix(in srgb, var(--accent) 50%, var(--border-strong));
+        font-weight: 650;
+      }
+      .inline-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: end;
+      }
+      .stack { display: grid; gap: 0.75rem; }
+      .error { color: #c00; }
+      @media (max-width: 900px) {
+        .app-shell { grid-template-columns: 1fr; }
+        .sidebar {
+          position: relative;
+          min-height: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--border);
+        }
+        .page-header { flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell" data-sidebar-collapsed="false">
+      <aside class="sidebar" aria-label="Site navigation">
+        <div class="sidebar-header">
+          <button class="sidebar-toggle" type="button" aria-label="Collapse navigation" aria-pressed="false" data-sidebar-toggle>☰</button>
+          <div class="brand">
+            <strong>Bearbiz</strong>
+            <span>Left nav shell</span>
+          </div>
+        </div>
+        <nav>
+          {% for item in left_nav %}
+            <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">
+              <span aria-hidden="true">{% if item.label == 'Dashboard' %}🏠{% elif item.label == 'Report Types' %}📄{% else %}⚙️{% endif %}</span>
+              <span class="label">{{ item.label }}</span>
+            </a>
+          {% endfor %}
+        </nav>
+        <div class="section-copy">
+          <small>Collapsible left nav</small>
+          <p class="muted">Use the tabs to move within a section.</p>
+        </div>
+      </aside>
+      <main>
+        <header class="page-header">
+          <div class="page-header-copy">
+            <div class="eyebrow">{{ section|default:page_title|default:"Bearbiz" }}</div>
+            <h1>{{ page_title|default:"Bearbiz" }}</h1>
+            {% if page_subtitle %}<p class="muted">{{ page_subtitle }}</p>{% endif %}
+          </div>
+          {% if primary_action %}
+            <a class="page-action primary" href="{{ primary_action.url }}">{{ primary_action.label }}</a>
+          {% endif %}
+        </header>
+
+        {% if top_tabs %}
+          <nav class="section-tabs" aria-label="Section tabs">
+            {% for tab in top_tabs %}
+              {% if tab.active %}
+                <span class="tab active" aria-current="page">{{ tab.label }}</span>
+              {% else %}
+                <a class="tab" href="{{ tab.url }}">{{ tab.label }}</a>
+              {% endif %}
+            {% endfor %}
+          </nav>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <script>
+      (() => {
+        const shell = document.querySelector('.app-shell');
+        const button = document.querySelector('[data-sidebar-toggle]');
+        const key = 'bearbiz.sidebar.collapsed';
+        if (!shell || !button) return;
+        const apply = (collapsed) => {
+          shell.dataset.sidebarCollapsed = collapsed ? 'true' : 'false';
+          button.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+          try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch (error) {}
+        };
+        try {
+          const stored = localStorage.getItem(key);
+          if (stored !== null) {
+            apply(stored === '1');
+          }
+        } catch (error) {}
+        button.addEventListener('click', () => {
+          apply(shell.dataset.sidebarCollapsed !== 'true');
+        });
+      })();
+    </script>
+  </body>
+</html>

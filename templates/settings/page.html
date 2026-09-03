@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h2>{{ page_title }}</h2>
+    <p class="muted">{{ page_subtitle }}</p>
+  </section>
+
+  {% if section_slug == 'fiscal' %}
+    <section class="panel">
+      <h3>Fiscal year settings</h3>
+      <form method="post" class="stack">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="error">{{ form.non_field_errors }}</div>
+        {% endif %}
+        <div>
+          <label for="{{ form.calendar_pattern.id_for_label }}">Calendar pattern</label>
+          {{ form.calendar_pattern }}
+          {% if form.calendar_pattern.errors %}<span class="error">{{ form.calendar_pattern.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.boundary_rule.id_for_label }}">Boundary rule</label>
+          {{ form.boundary_rule }}
+          {% if form.boundary_rule.errors %}<span class="error">{{ form.boundary_rule.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.boundary_month.id_for_label }}">Boundary month</label>
+          {{ form.boundary_month }}
+          {% if form.boundary_month.errors %}<span class="error">{{ form.boundary_month.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.boundary_weekday.id_for_label }}">Boundary weekday</label>
+          {{ form.boundary_weekday }}
+          {% if form.boundary_weekday.errors %}<span class="error">{{ form.boundary_weekday.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <button type="submit">Save settings</button>
+        </div>
+      </form>
+    </section>
+  {% elif section_slug == 'ai' %}
+    <section class="panel">
+      <h3>AI integration</h3>
+      <p class="muted">AI provider, prompts, and report-assist settings can live here next.</p>
+    </section>
+  {% else %}
+    <section class="panel">
+      <h3>General settings</h3>
+      <p class="muted">Bearbiz user information, database connections, and shared preferences will live here.</p>
+      <ul>
+        <li>Fiscal calendar is configured on the Fiscal year tab.</li>
+        <li>AI integration stays parked here for now.</li>
+        <li>Current section: {{ section_slug }}</li>
+      </ul>
+    </section>
+  {% endif %}
+{% endblock %}

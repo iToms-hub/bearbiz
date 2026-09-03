@@ -3,9 +3,13 @@ from __future__ import annotations
 import io
 from datetime import date
 from pathlib import Path
+
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+
+from apps.core.navigation import dashboard_tabs, report_tabs, shell_context
 
 from .dashboard import build_six_week_dashboard
 from .fiscal import as_dict, calculate_fiscal_week
@@ -13,39 +17,101 @@ from .forms import ReportUploadForm
 from .models import ReportUpload, WeeklySalesSummary
 from .registry import get
 
+REPORTS = {
+    1: {
+        "label": "Report 1",
+        "title": "Report 1: Weekly Sales Summary",
+        "subtitle": "Weekly sales uploads, parsed rows, and the live report history.",
+        "upload_supported": True,
+    },
+    2: {"label": "Report 2", "title": "Report 2", "subtitle": "Coming soon.", "upload_supported": False},
+    3: {"label": "Report 3", "title": "Report 3", "subtitle": "Coming soon.", "upload_supported": False},
+    4: {"label": "Report 4", "title": "Report 4", "subtitle": "Coming soon.", "upload_supported": False},
+    5: {"label": "Report 5", "title": "Report 5", "subtitle": "Coming soon.", "upload_supported": False},
+    6: {"label": "Report 6", "title": "Report 6", "subtitle": "Coming soon.", "upload_supported": False},
+}
+
 
 def dashboard(request: HttpRequest) -> HttpResponse:
     """Render the dashboard from persisted weekly sales summaries."""
 
-    week_filter = request.GET.get("weeks", "all")
+    week_filter = str(request.GET.get("weeks", "all"))
     reports = list(_dashboard_reports())
     payload = build_six_week_dashboard(reports, selection=week_filter, reference_date=date.today())
-    context = {
-        "dashboard": payload,
-        "selection": week_filter,
-        "empty_state": "No persisted weekly reports have been wired in yet.",
-        "uploads": ReportUpload.objects.order_by("-uploaded_at", "-id"),
-    }
+    uploads = list(ReportUpload.objects.order_by("-uploaded_at", "-id")[:5])
+    context = shell_context(
+        section="dashboard",
+        page_title="Dashboard",
+        subtitle="Current week plus the previous five weeks.",
+        top_tabs=dashboard_tabs("overview"),
+        primary_action={"label": "Open Report 1", "url": reverse("reports:index")},
+        dashboard=payload,
+        selection=week_filter,
+        uploads=uploads,
+        empty_state="No persisted weekly reports have been wired in yet.",
+    )
     if request.GET.get("format") == "json":
-        return JsonResponse({
-            "selection": week_filter,
-            "dashboard": payload.to_dict(),
-            "empty_state": context["empty_state"],
-        })
+        return JsonResponse(
+            {
+                "selection": week_filter,
+                "dashboard": payload.to_dict(),
+                "empty_state": context["empty_state"],
+            }
+        )
     return render(request, "reports/dashboard.html", context)
 
 
+def report_section(request: HttpRequest, number: int = 1) -> HttpResponse:
+    report = REPORTS.get(number)
+    if report is None:
+        raise Http404("Unknown report type.")
+
+    uploads = list(ReportUpload.objects.select_related("weekly_sales_summary").order_by("-uploaded_at", "-id")[:5])
+    context = shell_context(
+        section="reports",
+        page_title=report["title"],
+        subtitle=report["subtitle"],
+        top_tabs=report_tabs(number),
+        primary_action={"label": "Open upload form", "url": reverse("reports:history")} if number == 1 else None,
+        report=report,
+        report_number=number,
+        uploads=uploads,
+        upload_supported=report["upload_supported"],
+    )
+    return render(request, "reports/report_section.html", context)
+
+
 def report_history(request: HttpRequest) -> HttpResponse:
-    return report_upload(request)
+    uploads = ReportUpload.objects.select_related("weekly_sales_summary").order_by("-uploaded_at", "id")
+    context = shell_context(
+        section="reports",
+        page_title="Weekly sales report uploads",
+        subtitle="Upload a weekly sales PDF, then open its detail page to download the original file again.",
+        top_tabs=report_tabs(1),
+        primary_action={"label": "Report 1 overview", "url": reverse("reports:index")},
+        form=ReportUploadForm(),
+        uploads=uploads,
+    )
+    return render(request, "reports/history.html", context)
 
 
 def report_upload(request: HttpRequest) -> HttpResponse:
     if request.method == "GET":
-        return _render_upload_index(request, ReportUploadForm())
+        return redirect("reports:history")
 
     form = ReportUploadForm(request.POST, request.FILES)
     if not form.is_valid():
-        return _render_upload_index(request, form, status=400)
+        uploads = ReportUpload.objects.select_related("weekly_sales_summary").order_by("-uploaded_at", "id")
+        context = shell_context(
+            section="reports",
+            page_title="Weekly sales report uploads",
+            subtitle="Upload a weekly sales PDF, then open its detail page to download the original file again.",
+            top_tabs=report_tabs(1),
+            primary_action={"label": "Report 1 overview", "url": reverse("reports:index")},
+            form=form,
+            uploads=uploads,
+        )
+        return render(request, "reports/history.html", context, status=400)
 
     upload = form.save()
     _parse_and_store_summary(upload)
@@ -55,7 +121,16 @@ def report_upload(request: HttpRequest) -> HttpResponse:
 def report_detail(request: HttpRequest, pk: int) -> HttpResponse:
     upload = get_object_or_404(ReportUpload.objects.select_related("weekly_sales_summary"), pk=pk)
     summary = getattr(upload, "weekly_sales_summary", None)
-    return render(request, "reports/detail.html", {"upload": upload, "summary": summary})
+    context = shell_context(
+        section="reports",
+        page_title=upload.source_name,
+        subtitle="Upload detail and parsed summary.",
+        top_tabs=report_tabs(1),
+        primary_action={"label": "Upload another PDF", "url": reverse("reports:history")},
+        upload=upload,
+        summary=summary,
+    )
+    return render(request, "reports/detail.html", context)
 
 
 def report_download(request: HttpRequest, pk: int) -> FileResponse:
@@ -68,11 +143,6 @@ def report_download(request: HttpRequest, pk: int) -> FileResponse:
     response = FileResponse(upload.source_file.open("rb"), content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{Path(upload.source_name).name}"'
     return response
-
-
-def _render_upload_index(request: HttpRequest, form: ReportUploadForm, status: int = 200) -> HttpResponse:
-    uploads = ReportUpload.objects.select_related("weekly_sales_summary").order_by("-uploaded_at", "id")
-    return render(request, "reports/history.html", {"form": form, "uploads": uploads}, status=status)
 
 
 def _dashboard_reports():

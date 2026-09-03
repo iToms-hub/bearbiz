@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+  <section class="panel">
+    <div class="stack">
+      <p class="muted">{{ page_subtitle }}</p>
+      <div>
+        {% if upload_supported %}
+          <a class="page-action primary" href="{% url 'reports:history' %}">Upload weekly sales PDF</a>
+        {% else %}
+          <button type="button" disabled>Upload coming soon</button>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {% if report_number == 1 %}
+    <section class="panel">
+      <h2>Latest uploads</h2>
+      {% if uploads %}
+        <table>
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Status</th>
+              <th>Uploaded</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for upload in uploads %}
+              <tr>
+                <td>{{ upload.source_name }}</td>
+                <td>{{ upload.parse_status }}</td>
+                <td>{{ upload.uploaded_at }}</td>
+                <td>
+                  <a href="{% url 'reports:detail' upload.pk %}">View</a>
+                  · <a href="{% url 'reports:download' upload.pk %}">Download PDF</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="muted">No report uploads yet.</p>
+      {% endif %}
+    </section>
+  {% else %}
+    <section class="panel">
+      <h2>Coming soon</h2>
+      <p class="muted">This report type is scaffolded for the future Bearbiz report set.</p>
+    </section>
+  {% endif %}
+{% endblock %}
