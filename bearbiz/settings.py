@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from bearbiz import __version__ as VERSION
 import os
 from pathlib import Path
 
@@ -48,14 +49,16 @@ TEMPLATES = [
 WSGI_APPLICATION = "bearbiz.wsgi.application"
 ASGI_APPLICATION = "bearbiz.asgi.application"
 
-if os.getenv("POSTGRES_DB"):
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "").strip()
+if DATABASE_URL or POSTGRES_HOST:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
             "NAME": os.getenv("POSTGRES_DB", "bearbiz"),
             "USER": os.getenv("POSTGRES_USER", "bearbiz"),
             "PASSWORD": os.getenv("POSTGRES_PASSWORD", "bearbiz"),
-            "HOST": os.getenv("POSTGRES_HOST", "localhost"),
+            "HOST": POSTGRES_HOST or "localhost",
             "PORT": os.getenv("POSTGRES_PORT", "5432"),
         }
     }
@@ -76,5 +79,5 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+REPORTS_ROOT = MEDIA_ROOT / "reports"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-BERRYZ_VERSION = "0.0.1"
