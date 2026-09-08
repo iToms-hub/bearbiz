@@ -22,9 +22,10 @@ class ReportUploadForm(forms.ModelForm):
             raise ValidationError("Upload a PDF file.")
         return source_file
 
-    def save(self, commit: bool = True) -> ReportUpload:
+    def save(self, commit: bool = True, *, report_type: str = "weekly_sales") -> ReportUpload:
         instance: ReportUpload = super().save(commit=False)
         source_file = self.cleaned_data["source_file"]
+        setattr(instance, "report_type", report_type)
         instance.source_name = str(getattr(source_file, "name", "weekly_sales.pdf"))
         if commit:
             instance.save()

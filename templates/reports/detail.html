@@ -4,16 +4,73 @@
   <section class="panel">
     <h2>Source PDF</h2>
     <p><a class="page-action" href="{% url 'reports:download' upload.pk %}">Download original PDF</a></p>
+    <form method="post" action="{% url 'reports:delete' upload.pk %}">
+      {% csrf_token %}
+      <button type="submit">Delete report</button>
+    </form>
   </section>
 
   <section class="panel">
-    <h2>Parse details</h2>
     {% if summary %}
-      <p><strong>Fiscal year:</strong> {{ summary.fiscal_year }}</p>
-      <p><strong>Fiscal week:</strong> {{ summary.fiscal_week }}</p>
-      <p><strong>Period:</strong> {{ summary.fiscal_period_start }} → {{ summary.fiscal_period_end }}</p>
-      <h3>Raw JSON</h3>
-      <pre>{{ summary.raw_json }}</pre>
+      <h2>Fiscal week {{ summary.fiscal_week }}</h2>
+      <p><strong>Week ending:</strong> {{ summary.fiscal_period_end|date:"m/d/Y" }}</p>
+      <h3>AI enrichment</h3>
+      {% if summary.ai_summary %}
+        <p><strong>Provider:</strong> {{ summary.ai_provider|default:"OpenAI-compatible" }}</p>
+        <p><strong>Model:</strong> {{ summary.ai_model|default:"—" }}</p>
+        <pre>{{ summary.ai_summary }}</pre>
+      {% elif summary.ai_error %}
+        <p class="muted">AI enrichment failed: {{ summary.ai_error }}</p>
+      {% else %}
+        <p class="muted">AI enrichment is not configured for this report yet.</p>
+      {% endif %}
+      <h3>{{ summary_section_title }}</h3>
+      {% if summary_metric_headers and summary_metric_values %}
+        <table class="metric-table">
+          <thead>
+            <tr>
+              {% for header in summary_metric_headers %}
+                <th>{{ header }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {% for value in summary_metric_values %}
+                <td>{{ value }}</td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      {% else %}
+        <p class="muted">No summary metrics were extracted from this report.</p>
+      {% endif %}
+      {% if detail_rows %}
+        <h3>{{ detail_section_title|default:"Gift card rows" }}</h3>
+        {% if detail_note %}
+          <p class="muted">{{ detail_note }}</p>
+        {% endif %}
+        <div class="table-wrap">
+          <table class="report-grid striped">
+            <thead>
+              <tr>
+                {% for header in detail_headers %}
+                  <th>{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail_rows %}
+                <tr>
+                  {% for value in row.values %}
+                    <td>{{ value }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
     {% elif upload.parse_error %}
       <p class="muted">{{ upload.parse_error }}</p>
     {% else %}

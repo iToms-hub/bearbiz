@@ -11,6 +11,7 @@ from ..registry import register
 class WeeklySalesReport:
     slug = "weekly_sales"
     display_name = "Weekly Sales"
+    parse_version = 2
 
     _SECTION_KEYWORDS = (
         "summary",
@@ -123,12 +124,7 @@ class WeeklySalesReport:
         if not period_end:
             period_end = fallback_end
 
-        fiscal = None
-        if period_start and period_end:
-            try:
-                fiscal = as_dict(calculate_fiscal_week(period_start, period_end))
-            except Exception:
-                fiscal = None
+        fiscal = self._build_fiscal_payload(period_start, period_end)
 
         return ParsedReport(
             report_type=self.slug,
@@ -136,6 +132,7 @@ class WeeklySalesReport:
             period_start=period_start,
             period_end=period_end,
             payload={
+                "parse_version": self.parse_version,
                 "raw_text": raw_text,
                 "table_title": table_title,
                 "summary_rows": rows,
@@ -166,6 +163,32 @@ class WeeklySalesReport:
             if start and end:
                 return start.isoformat(), end.isoformat()
         return None, None
+
+    @classmethod
+    def _build_fiscal_payload(cls, period_start: str | None, period_end: str | None) -> dict[str, object] | None:
+        if not period_start or not period_end:
+            return None
+        start = cls._parse_date(period_start)
+        end = cls._parse_date(period_end)
+        if not start or not end:
+            return None
+
+        from apps.core.models import FiscalYearSettings
+
+        settings = FiscalYearSettings.current()
+        if getattr(settings, "fiscal_year_start_date", None):
+            return {
+                "fiscal_year": settings.fiscal_year_for_date(end),
+                "week_ending_date": end.isoformat(),
+                "fiscal_week_number": settings.fiscal_week_for_date(end),
+                "period_start": start.isoformat(),
+                "period_end": end.isoformat(),
+            }
+
+        try:
+            return as_dict(calculate_fiscal_week(start, end))
+        except Exception:
+            return None
 
     @classmethod
     def _extract_top_table(cls, raw_text: str) -> tuple[str | None, list[dict[str, object]]]:

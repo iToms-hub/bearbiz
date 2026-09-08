@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -34,11 +34,16 @@ class FiscalYearSettings(models.Model):
     """Singleton configuration for a retail fiscal calendar."""
 
     singleton_key = models.PositiveSmallIntegerField(default=1, unique=True, editable=False)
+    fiscal_year_start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="First day of the current fiscal year. The 4-5-4 calendar stays fixed behind the scenes.",
+    )
     calendar_pattern = models.CharField(
         max_length=3,
         choices=CalendarPattern.choices,
         default=CalendarPattern.FOUR_FIVE_FOUR,
-        help_text="Retail quarter pattern used for week grouping.",
+        help_text="Fixed to 4-5-4 internally.",
     )
     boundary_rule = models.CharField(
         max_length=16,
@@ -83,9 +88,14 @@ class FiscalYearSettings(models.Model):
         return cls()
 
     def fiscal_year_end(self, year: int) -> date:
+        if self.fiscal_year_start_date:
+            return self.fiscal_year_start_date - timedelta(days=1)
         return boundary_date(year, self.boundary_month, self.boundary_weekday, self.boundary_rule)
 
     def fiscal_year_for_date(self, day: date) -> int:
+        if self.fiscal_year_start_date:
+            fiscal_year, _ = self._start_and_week_for_date(day)
+            return fiscal_year
         return fiscal_year_for_day(
             day,
             month=self.boundary_month,
@@ -94,9 +104,73 @@ class FiscalYearSettings(models.Model):
         )
 
     def fiscal_week_for_date(self, day: date) -> int:
+        if self.fiscal_year_start_date:
+            _, week = self._start_and_week_for_date(day)
+            return week
         return fiscal_week_for_day(
             day,
             month=self.boundary_month,
             weekday=self.boundary_weekday,
             rule=self.boundary_rule,
         )
+
+    def _start_and_week_for_date(self, day: date) -> tuple[int, int]:
+        start = getattr(self, "fiscal_year_start_date", None)
+        if start is None:
+            raise ValueError("fiscal_year_start_date is not set")
+
+        start = date(start.year, start.month, start.day)
+        fiscal_year = start.year + 1
+        if day < start:
+            fiscal_year = start.year
+            start = start - timedelta(weeks=52)
+
+        week_number = ((day - start).days // 7) + 1
+        if week_number < 1:
+            week_number = 1
+        return fiscal_year, week_number
+
+
+class AIIntegrationSettings(models.Model):
+    """Singleton configuration for report AI enrichment."""
+
+    singleton_key = models.PositiveSmallIntegerField(default=1, unique=True, editable=False)
+    enabled = models.BooleanField(default=False)
+    provider_name = models.CharField(max_length=64, default="openai-compatible")
+    api_base_url = models.URLField(default="https://api.openai.com/v1")
+    api_key_env_var = models.CharField(max_length=64, blank=True, default="")
+    model_name = models.CharField(max_length=128, default="gpt-4o-mini")
+    temperature = models.DecimalField(max_digits=3, decimal_places=2, default=0.20)
+    max_output_tokens = models.PositiveSmallIntegerField(default=500)
+    report_summary_prompt = models.TextField(
+        default=(
+            "Summarize the weekly sales report for a store manager. "
+            "Call out notable trends, weak spots, and a practical next action."
+        )
+    )
+    system_prompt = models.TextField(
+        default=(
+            "You are Bearbiz's AI report assistant. Write concise, helpful report summaries "
+            "based only on the supplied report data."
+        )
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "AI integration settings"
+        verbose_name_plural = "AI integration settings"
+
+    def __str__(self) -> str:
+        return "AI integration settings"
+
+    def save(self, *args, **kwargs):
+        self.singleton_key = 1
+        return super().save(*args, **kwargs)
+
+    @classmethod
+    def current(cls) -> "AIIntegrationSettings":
+        instance = cls.objects.order_by("pk").first()
+        if instance is not None:
+            return instance
+        return cls()

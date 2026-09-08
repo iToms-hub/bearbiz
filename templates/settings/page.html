@@ -6,33 +6,77 @@
     <p class="muted">{{ page_subtitle }}</p>
   </section>
 
-  {% if section_slug == 'fiscal' %}
+  {% if section_slug == 'theme' %}
+    <section class="panel stack theme-settings">
+      <div>
+        <h3>Theme</h3>
+        <p class="muted">Pick a color scheme, then choose whether light and dark mode should follow your system or stay locked.</p>
+      </div>
+
+      <div class="theme-group">
+        <h4>Mode</h4>
+        <div class="theme-option-grid">
+          <button type="button" class="theme-option" data-theme-mode-button="system">
+            <span class="theme-option-name">System</span>
+            <span class="theme-option-desc">Follow your device light/dark setting automatically.</span>
+          </button>
+          <button type="button" class="theme-option" data-theme-mode-button="light">
+            <span class="theme-option-name">Light</span>
+            <span class="theme-option-desc">Always use the light color treatment.</span>
+          </button>
+          <button type="button" class="theme-option" data-theme-mode-button="dark">
+            <span class="theme-option-name">Dark</span>
+            <span class="theme-option-desc">Always use the dark color treatment.</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="theme-group">
+        <h4>Color scheme</h4>
+        <div class="theme-option-grid">
+          <button type="button" class="theme-option" data-theme-scheme-button="default">
+            <span class="theme-swatch" style="background:#5b7cfa"></span>
+            <span class="theme-option-name">Default</span>
+            <span class="theme-option-desc">Classic blue Bearbiz.</span>
+          </button>
+          <button type="button" class="theme-option" data-theme-scheme-button="ocean">
+            <span class="theme-swatch" style="background:#0ea5e9"></span>
+            <span class="theme-option-name">Ocean</span>
+            <span class="theme-option-desc">Cool blue with a brighter edge.</span>
+          </button>
+          <button type="button" class="theme-option" data-theme-scheme-button="forest">
+            <span class="theme-swatch" style="background:#0f8b4c"></span>
+            <span class="theme-option-name">Forest</span>
+            <span class="theme-option-desc">Green and calm, a little shop-floor friendly.</span>
+          </button>
+          <button type="button" class="theme-option" data-theme-scheme-button="sunset">
+            <span class="theme-swatch" style="background:#f97316"></span>
+            <span class="theme-option-name">Sunset</span>
+            <span class="theme-option-desc">Warm orange for a punchier feel.</span>
+          </button>
+          <button type="button" class="theme-option" data-theme-scheme-button="plum">
+            <span class="theme-swatch" style="background:#8b5cf6"></span>
+            <span class="theme-option-name">Plum</span>
+            <span class="theme-option-desc">Purple accent with a softer mood.</span>
+          </button>
+        </div>
+      </div>
+
+      <p class="muted theme-status" data-theme-status>Theme preference is saved in this browser.</p>
+    </section>
+  {% elif section_slug == 'fiscal' %}
     <section class="panel">
       <h3>Fiscal year settings</h3>
+      <p class="muted">Bearbiz always uses a 4-5-4 calendar behind the scenes. Set the fiscal year start date and the rest is calculated from there.</p>
       <form method="post" class="stack">
         {% csrf_token %}
         {% if form.non_field_errors %}
           <div class="error">{{ form.non_field_errors }}</div>
         {% endif %}
         <div>
-          <label for="{{ form.calendar_pattern.id_for_label }}">Calendar pattern</label>
-          {{ form.calendar_pattern }}
-          {% if form.calendar_pattern.errors %}<span class="error">{{ form.calendar_pattern.errors|striptags }}</span>{% endif %}
-        </div>
-        <div>
-          <label for="{{ form.boundary_rule.id_for_label }}">Boundary rule</label>
-          {{ form.boundary_rule }}
-          {% if form.boundary_rule.errors %}<span class="error">{{ form.boundary_rule.errors|striptags }}</span>{% endif %}
-        </div>
-        <div>
-          <label for="{{ form.boundary_month.id_for_label }}">Boundary month</label>
-          {{ form.boundary_month }}
-          {% if form.boundary_month.errors %}<span class="error">{{ form.boundary_month.errors|striptags }}</span>{% endif %}
-        </div>
-        <div>
-          <label for="{{ form.boundary_weekday.id_for_label }}">Boundary weekday</label>
-          {{ form.boundary_weekday }}
-          {% if form.boundary_weekday.errors %}<span class="error">{{ form.boundary_weekday.errors|striptags }}</span>{% endif %}
+          <label for="{{ form.fiscal_year_start_date.id_for_label }}">Fiscal year start date</label>
+          {{ form.fiscal_year_start_date }}
+          {% if form.fiscal_year_start_date.errors %}<span class="error">{{ form.fiscal_year_start_date.errors|striptags }}</span>{% endif %}
         </div>
         <div>
           <button type="submit">Save settings</button>
@@ -41,18 +85,73 @@
     </section>
   {% elif section_slug == 'ai' %}
     <section class="panel">
-      <h3>AI integration</h3>
-      <p class="muted">AI provider, prompts, and report-assist settings can live here next.</p>
+      <h3>AI integration settings</h3>
+      <form method="post" class="stack">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="error">{{ form.non_field_errors }}</div>
+        {% endif %}
+        <div>
+          <label for="{{ form.enabled.id_for_label }}">Enabled</label>
+          {{ form.enabled }}
+          {% if form.enabled.errors %}<span class="error">{{ form.enabled.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.provider_name.id_for_label }}">Provider name</label>
+          {{ form.provider_name }}
+          {% if form.provider_name.errors %}<span class="error">{{ form.provider_name.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.api_base_url.id_for_label }}">API base URL</label>
+          {{ form.api_base_url }}
+          {% if form.api_base_url.errors %}<span class="error">{{ form.api_base_url.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.api_key_env_var.id_for_label }}">API key environment variable</label>
+          {{ form.api_key_env_var }}
+          {% if form.api_key_env_var.errors %}<span class="error">{{ form.api_key_env_var.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.model_name.id_for_label }}">Model name</label>
+          {{ form.model_name }}
+          {% if form.model_name.errors %}<span class="error">{{ form.model_name.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.temperature.id_for_label }}">Temperature</label>
+          {{ form.temperature }}
+          {% if form.temperature.errors %}<span class="error">{{ form.temperature.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.max_output_tokens.id_for_label }}">Max output tokens</label>
+          {{ form.max_output_tokens }}
+          {% if form.max_output_tokens.errors %}<span class="error">{{ form.max_output_tokens.errors|striptags }}</span>{% endif %}
+        </div>
+        <div>
+          <button type="submit" name="action" value="save">Save AI settings</button>
+          <button type="submit" name="action" value="test" data-ai-test-button{% if probe_result %} class="{% if probe_result.ok %}success{% else %}error{% endif %}"{% endif %}>Test connection</button>
+        </div>
+      </form>
     </section>
-  {% else %}
-    <section class="panel">
-      <h3>General settings</h3>
-      <p class="muted">Bearbiz user information, database connections, and shared preferences will live here.</p>
-      <ul>
-        <li>Fiscal calendar is configured on the Fiscal year tab.</li>
-        <li>AI integration stays parked here for now.</li>
-        <li>Current section: {{ section_slug }}</li>
-      </ul>
-    </section>
+
+    {% if probe_result %}
+      <section class="panel">
+        <h3>Connection test result</h3>
+        <p class="{% if probe_result.ok %}success{% else %}error{% endif %}" data-ai-test-status>
+          {% if probe_result.ok %}
+            {{ probe_result.message }}
+          {% else %}
+            {{ probe_result.error }}
+          {% endif %}
+        </p>
+        {% if probe_result.models %}
+          <p class="muted">Models returned:</p>
+          <ul>
+            {% for model in probe_result.models %}
+              <li>{{ model }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </section>
+    {% endif %}
   {% endif %}
 {% endblock %}

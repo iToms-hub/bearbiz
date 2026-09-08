@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Agent{% endblock %}
+{% block content %}
+  <section class="chat-layout">
+    <div class="chat-header">
+      <div>
+        <h2>Agent</h2>
+        <p class="muted">Chat with Bearbiz’s AI about sales, uploads, and trends.</p>
+      </div>
+      <div class="chat-status {% if chat_enabled %}is-online{% else %}is-offline{% endif %}">
+        {% if chat_enabled %}
+          AI connected
+        {% else %}
+          AI disabled in settings
+        {% endif %}
+      </div>
+    </div>
+
+    <section class="chat-panel">
+      <div class="chat-thread" data-chat-thread>
+        {% if chat_messages %}
+          {% for message in chat_messages %}
+            <article class="chat-message {{ message.role }}">
+              <div class="chat-avatar">{% if message.role == 'assistant' %}AI{% else %}You{% endif %}</div>
+              <div class="chat-bubble">
+                <div class="chat-meta">{% if message.role == 'assistant' %}Bearbiz AI{% else %}You{% endif %}</div>
+                {{ message.content }}
+              </div>
+            </article>
+          {% endfor %}
+        {% else %}
+          <div class="chat-empty">
+            <h2>Ask Bearbiz anything</h2>
+            <p class="muted">Try a question about the latest week, a trend, or a recent upload.</p>
+            <div class="chat-prompt-grid">
+              {% for prompt in chat_prompts %}
+                <button type="button" class="chat-prompt" data-chat-prompt>{{ prompt }}</button>
+              {% endfor %}
+            </div>
+            <p class="muted">The agent is looking at the same sales data you see in the reports.</p>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="chat-composer">
+        <form method="post" class="chat-form" data-chat-form>
+          {% csrf_token %}
+          <div class="chat-input-row">
+            <textarea
+              name="message"
+              class="chat-input"
+              data-chat-input
+              placeholder="Ask about sales, uploads, trends, or AI summaries..."
+            ></textarea>
+            <button type="submit" data-chat-send>Send</button>
+          </div>
+          <div class="chat-hint">
+            <span class="muted">Quick prompts:</span>
+            {% for prompt in chat_prompts %}
+              <button type="button" class="chat-prompt" data-chat-prompt>{{ prompt }}</button>
+            {% endfor %}
+          </div>
+        </form>
+      </div>
+    </section>
+  </section>
+
+  <script>
+    (() => {
+      const form = document.querySelector('[data-chat-form]');
+      const input = document.querySelector('[data-chat-input]');
+      const thread = document.querySelector('[data-chat-thread]');
+      if (!form || !input || !thread) return;
+
+      const csrfToken = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('csrftoken='))
+        ?.split('=')[1] || '';
+
+      const scrollToBottom = () => {
+        thread.scrollTop = thread.scrollHeight;
+      };
+
+      const escapeHtml = (value) =>
+        String(value)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+
+      const ensureHistoryShell = () => {
+        const empty = thread.querySelector('.chat-empty');
+        if (empty) {
+          thread.innerHTML = '';
+        }
+      };
+
+      const appendMessage = (role, content) => {
+        const article = document.createElement('article');
+        article.className = `chat-message ${role}`;
+        article.innerHTML = `
+          <div class="chat-avatar">${role === 'assistant' ? 'AI' : 'You'}</div>
+          <div class="chat-bubble">
+            <div class="chat-meta">${role === 'assistant' ? 'Bearbiz AI' : 'You'}</div>
+            ${escapeHtml(content).replace(/\n/g, '<br>')}
+          </div>
+        `;
+        thread.appendChild(article);
+      };
+
+      document.querySelectorAll('[data-chat-prompt]').forEach((button) => {
+        button.addEventListener('click', () => {
+          input.value = button.textContent.trim();
+          input.focus();
+        });
+      });
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const message = input.value.trim();
+        if (!message) return;
+
+        ensureHistoryShell();
+        appendMessage('user', message);
+        input.value = '';
+        scrollToBottom();
+
+        const response = await fetch(window.location.pathname, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify({ message }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+          appendMessage('assistant', data.error || 'I could not reach the AI right now.');
+          scrollToBottom();
+          return;
+        }
+
+        appendMessage('assistant', data.reply);
+        scrollToBottom();
+      });
+
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          form.requestSubmit();
+        }
+      });
+
+      scrollToBottom();
+    })();
+  </script>
+{% endblock %}

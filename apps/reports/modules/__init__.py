@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 from ..registry import is_registered, register
+from .bonus_club import BonusClubReport
+from .gift_cards import GiftCardsReport
+from .ranking import RankingReport
+from .segments import SegmentsReport
 from .weekly_sales import WeeklySalesReport
 
-BUILTIN_REPORTS: tuple[WeeklySalesReport, ...] = (WeeklySalesReport(),)
+BUILTIN_REPORTS: tuple[WeeklySalesReport | RankingReport | SegmentsReport | GiftCardsReport | BonusClubReport, ...] = (
+    WeeklySalesReport(),
+    RankingReport(),
+    SegmentsReport(),
+    GiftCardsReport(),
+    BonusClubReport(),
+)
 
 
 def load_builtin_reports() -> tuple[str, ...]:

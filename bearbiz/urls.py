@@ -16,6 +16,7 @@ def health(request):
 urlpatterns = [
     path("", dashboard, name="dashboard"),
     path("reports/", include(("apps.reports.urls", "reports"), namespace="reports")),
+    path("agent/", include(("apps.agent.urls", "agent"), namespace="agent")),
     path("settings/", include(("apps.core.urls", "settings"), namespace="settings")),
     path("admin/", admin.site.urls),
     path("health/", health),

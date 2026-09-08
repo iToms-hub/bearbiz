@@ -1,56 +1,107 @@
 {% extends "base.html" %}
 {% block title %}Bearbiz dashboard{% endblock %}
 {% block content %}
-  <section class="panel">
-    <h2>6-week trend overview</h2>
-    {% if dashboard.trends %}
-      <table>
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Total</th>
-            <th>6-week trend</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for trend in dashboard.trends.values %}
+  <div class="dashboard-split-grid dashboard-top-metrics">
+    <section class="panel dashboard-card stack">
+      <h2>Bonus Club</h2>
+      {% if bonus_club_value %}
+        <div class="dashboard-metric-value">{{ bonus_club_value }}</div>
+      {% else %}
+        <div class="empty">No Bonus Club report has been wired in yet.</div>
+      {% endif %}
+    </section>
+
+    <section class="panel dashboard-card stack">
+      <h2>Gift Card Bonus</h2>
+      {% if gift_cards_value %}
+        <div class="dashboard-metric-value">{{ gift_cards_value }}</div>
+      {% else %}
+        <div class="empty">No Gift Cards report has been wired in yet.</div>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="panel stack">
+    <h2>Weekly Sales Reports</h2>
+    {% if dashboard_rows %}
+      <div class="table-wrap">
+        <table class="report-grid striped">
+          <thead>
             <tr>
-              <td>{{ trend.label }}</td>
-              <td>{{ trend.total }}</td>
-              <td>
-                {% for point in trend.points %}
-                  <span title="{{ point.week_key }}">{{ point.value }}</span>{% if not forloop.last %} · {% endif %}
-                {% endfor %}
-              </td>
+              {% for header in dashboard_headers %}
+                <th>{{ header }}</th>
+              {% endfor %}
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for row in dashboard_rows %}
+              <tr class="{{ row.row_class|default:'' }}">
+                {% for value in row.values %}
+                  <td>{{ value }}</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <div class="empty">{{ empty_state }}</div>
     {% endif %}
   </section>
 
-  <section class="grid">
-    <div class="panel">
-      <h2>Week window</h2>
-      <ul>
-        {% for week in dashboard.weeks %}
-          <li>{% if week.is_current %}<strong>{{ week.label }}</strong>{% else %}{{ week.label }}{% endif %}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    <div class="panel">
-      <h2>Recent uploads</h2>
-      {% if uploads %}
-        <ul>
-          {% for upload in uploads %}
-            <li><a href="{% url 'reports:detail' upload.pk %}">{{ upload.source_name }}</a> · {{ upload.parse_status }}</li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="muted">No uploads yet.</p>
-      {% endif %}
-    </div>
+  <section class="panel stack">
+    <h2>District Ranking</h2>
+    {% if ranking_rows %}
+      <div class="table-wrap">
+        <table class="report-grid striped">
+          <thead>
+            <tr>
+              {% for header in ranking_headers %}
+                <th>{{ header }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in ranking_rows %}
+              <tr class="{{ row.row_class|default:'' }}">
+                {% for value in row.values %}
+                  <td>{{ value }}</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">No ranking reports have been wired in yet.</div>
+    {% endif %}
+  </section>
+
+  <section class="panel stack">
+    <h2>Segment Accountability</h2>
+    {% if segment_rows %}
+      <div class="table-wrap">
+        <table class="report-grid report-grid-associate striped">
+          <thead>
+            <tr>
+              {% for header in segment_headers %}
+                <th>{{ header }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in segment_rows %}
+              <tr class="{{ row.row_class|default:'report-week-row' }}">
+                {% for value in row.values %}
+                  <td>{{ value }}</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">No segment reports have been wired in yet.</div>
+    {% endif %}
   </section>
 {% endblock %}

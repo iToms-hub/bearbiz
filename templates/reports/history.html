@@ -1,50 +1,63 @@
 {% extends "base.html" %}
-{% block title %}Weekly sales reports{% endblock %}
+{% block title %}{{ report.label }}{% endblock %}
 {% block content %}
-  <section class="panel">
-    <h2>Upload PDF</h2>
-    <form method="post" enctype="multipart/form-data" action="{% url 'reports:upload' %}">
-      {% csrf_token %}
-      {{ form.non_field_errors }}
-      <p>
-        <label for="{{ form.source_file.id_for_label }}">PDF file</label>
-        {{ form.source_file }}
-        {% if form.source_file.errors %}
-          <span class="error">{{ form.source_file.errors|striptags }}</span>
-        {% endif %}
-      </p>
-      <button type="submit">Upload weekly sales PDF</button>
-    </form>
+  <section class="panel stack">
+    {% if report_upload_supported %}
+      <form class="upload-form" method="post" enctype="multipart/form-data" action="{{ upload_url }}">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="upload-file-field">
+          <label for="{{ form.source_file.id_for_label }}">Select a PDF</label>
+          <div class="upload-file-row">
+            {{ form.source_file }}
+            <button class="upload-submit" type="submit">Upload file</button>
+          </div>
+          {% if form.source_file.errors %}
+            <span class="error">{{ form.source_file.errors|striptags }}</span>
+          {% endif %}
+        </div>
+      </form>
+    {% else %}
+      <p class="muted">Uploads for this report type are not set up yet.</p>
+    {% endif %}
   </section>
 
   <section class="panel">
-    <h2>History</h2>
-    {% if uploads %}
-      <table>
+    <h2>Uploaded reports</h2>
+    {% if report_upload_supported and uploads %}
+      <table class="striped">
         <thead>
           <tr>
-            <th>File</th>
             <th>Status</th>
             <th>Uploaded</th>
+            <th>Download</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for upload in uploads %}
             <tr>
-              <td>{{ upload.source_name }}</td>
               <td>{{ upload.parse_status }}</td>
               <td>{{ upload.uploaded_at }}</td>
               <td>
+                <a href="{% url 'reports:download' upload.pk %}">Download</a>
+                <div class="muted" style="margin-top:0.25rem; font-size:0.85em;">{{ upload.source_name }}</div>
+              </td>
+              <td>
                 <a href="{% url 'reports:detail' upload.pk %}">View</a>
-                · <a href="{% url 'reports:download' upload.pk %}">Download PDF</a>
+                <form method="post" action="{% url 'reports:delete' upload.pk %}" style="display:inline">
+                  {% csrf_token %}
+                  <button type="submit">Delete</button>
+                </form>
               </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
-    {% else %}
+    {% elif report_upload_supported %}
       <p class="muted">No report uploads yet.</p>
+    {% else %}
+      <p class="muted">This report type has no uploads yet.</p>
     {% endif %}
   </section>
 {% endblock %}
