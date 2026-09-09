@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>{{ report_pdf_title }}</title>
+    <style>
+      @page { size: Letter portrait; margin: 0.6cm; }
+      body { font-family: sans-serif; color: #111; font-size: 10pt; }
+      h1 { font-size: 18pt; margin: 0 0 0.2cm; }
+      h2 { font-size: 13pt; margin: 0 0 0.15cm; }
+      p { margin: 0 0 0.35cm; color: #444; }
+      .context { border-bottom: 1px solid #999; margin-bottom: 0.5cm; padding-bottom: 0.25cm; }
+      table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 7pt; }
+      th, td { border: 1px solid #999; padding: 0.06cm 0.08cm; text-align: center; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+      th { background: #eee; }
+      thead { display: table-header-group; }
+      tr { break-inside: avoid; }
+      .report-week-row-odd { background: #fff; }
+      .report-week-row-even { background: #f1f1f1; }
+      .report-week-row-latest { background: #e2f3e6; font-weight: 650; }
+      .report-summary-row { background: #e8f1ff; font-weight: 650; }
+      .report-summary-month { background: #e4f0ff; }
+      .report-summary-quarter { background: #dceaff; }
+      .report-summary-year,
+      .report-summary-trend { background: #d2e3ff; font-weight: 700; }
+      .report-spacer-row td { padding: 0; border: 0; height: 0.15cm; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <div class="context">
+      <h1>{{ report_pdf_title }}</h1>
+      <h2>{{ report_view_title }}</h2>
+      <p>{{ report_view_note }} · Filter: {{ report_date_mode|title }} · Showing {{ report_filtered_count }} of {{ report_total_count }} weeks.</p>
+    </div>
+    {% if report_rows %}
+      <table class="{{ report_table_class|default:'report-grid striped' }}">
+        <thead><tr>{% for header in report_headers %}<th>{{ header }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for row in report_rows %}<tr class="{{ row.row_class|default:'' }}">{% for value in row.values %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+      </table>
+    {% else %}<p>No report data yet.</p>{% endif %}
+  </body>
+</html>

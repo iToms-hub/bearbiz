@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from html import escape
 from pathlib import Path
 from typing import Any, cast
 
@@ -11,7 +13,9 @@ from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonRe
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_POST
+from weasyprint import HTML
 
 from apps.core.ai import summarize_weekly_sales_report
 from apps.core.navigation import report_date_tabs, report_tabs, shell_context
@@ -38,6 +42,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     gift_cards_summary = _dashboard_latest_summary(GiftCardsSummary)
     gift_cards_value = _dashboard_store_percentage(gift_cards_summary, "bonus_percent")
     summaries = _dashboard_weekly_sales_summaries(limit=6)
+    dashboard_title = _dashboard_title(summaries)
     dashboard_headers = _weekly_report_headers()
     dashboard_rows = _weekly_report_rows(summaries)
     dashboard_rows.extend(_dashboard_trend_rows(summaries))
@@ -49,7 +54,8 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     segment_rows = _dashboard_segment_rows(segment_summaries)
     context = shell_context(
         section="dashboard",
-        page_title="Dashboard",
+        page_title=dashboard_title,
+        eyebrow="Dashboard",
         subtitle="Latest store performance and weekly sales reports.",
         bonus_club_value=bonus_club_value,
         gift_cards_value=gift_cards_value,
@@ -101,7 +107,373 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     return render(request, "reports/dashboard.html", context)
 
 
+def performance(request: HttpRequest) -> HttpResponse:
+    """Render associate performance across the persisted report summaries."""
+    state = _performance_state(request)
+    context = shell_context(
+        section="performance",
+        page_title="Performance",
+        eyebrow="Performance",
+        subtitle="Associate performance from Gift Cards, Bonus Club, and Segment Accountability reports.",
+
+        performance_date_filter=state["date_filter"],
+        performance_date_options=state["date_options"],
+        performance_range_start=state["range_start"],
+        performance_range_end=state["range_end"],
+        performance_associate_options=state["associate_options"],
+        performance_associate_selected=state["selected_associate"],
+        performance_associate_label=state["selected_label"],
+        performance_rows=state["rows"],
+        performance_segment_rows=state["segment_rows"],
+        segment_headers=_segments_range_report_headers(),
+        performance_segment_listed=state["segment_listed"],
+        performance_chart_svg=state["chart_svg"],
+        performance_period_label=state["period_label"],
+    )
+    return render(request, "performance/associates.html", context)
+
+
+def performance_pdf(request: HttpRequest) -> HttpResponse:
+    """Export the current associate performance selection as a portrait PDF."""
+    # Keep this endpoint beside the performance state builder for live reloads.
+    state = _performance_state(request)
+    selected_label = str(state["selected_label"] or "Associate")
+    filename_label = re.sub(r"[^A-Za-z0-9 .:-]+", "", selected_label).strip(" .-") or "Associate"
+    date_filter = str(state["date_filter"])
+    if date_filter == "range":
+        suffix = f"{state['range_start']} to {state['range_end']}"
+    else:
+        suffix = {"last_week": "last week", "month": "current month", "quarter": "current quarter"}.get(date_filter, "current view")
+    filename = f"Performance Associates: {filename_label} - {suffix}.pdf"
+    context = shell_context(
+        section="performance",
+        page_title="Performance",
+        performance_associate_label=selected_label,
+        performance_period_label=state["period_label"],
+        performance_rows=state["rows"],
+        performance_segment_rows=state["segment_rows"],
+        performance_segment_listed=state["segment_listed"],
+        performance_chart_svg=state["chart_svg"],
+        segment_headers=_segments_range_report_headers(),
+        report_pdf_title=filename.removesuffix(".pdf"),
+    )
+    html = render(request, "performance/associates_pdf.html", context).content.decode("utf-8")
+    pdf = HTML(string=html, base_url=request.build_absolute_uri("/")).write_pdf()
+    response = HttpResponse(pdf or b"", content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _performance_state(request: HttpRequest) -> dict[str, object]:
+    date_filter = str(request.GET.get("date_filter", "last_week"))
+    if date_filter not in {"last_week", "month", "quarter", "range"}:
+        date_filter = "last_week"
+    today = _current_date()
+    gift_cards = list(getattr(GiftCardsSummary, "objects").select_related("report_upload").order_by("fiscal_year", "fiscal_week", "id"))
+    bonus_club = list(getattr(BonusClubSummary, "objects").select_related("report_upload").order_by("fiscal_year", "fiscal_week", "id"))
+    segments = list(getattr(SegmentsSummary, "objects").select_related("report_upload").order_by("fiscal_year", "fiscal_week", "id"))
+    available_associate_summaries = gift_cards + bonus_club
+    all_summaries = available_associate_summaries + segments
+    dates = [summary.fiscal_period_end for summary in all_summaries if summary.fiscal_period_end]
+    latest_date = max(dates, default=today)
+    if date_filter == "last_week":
+        filtered_end = latest_date
+        filtered_start = latest_date - timedelta(days=6)
+    elif date_filter == "month":
+        filtered_start = today.replace(day=1)
+        filtered_end = today
+    elif date_filter == "quarter":
+        filtered_start = today.replace(month=((today.month - 1) // 3) * 3 + 1, day=1)
+        filtered_end = today
+    else:
+        filtered_start = _parse_date(str(request.GET.get("range_start", ""))) or latest_date - timedelta(days=6)
+        filtered_end = _parse_date(str(request.GET.get("range_end", ""))) or latest_date
+        if filtered_start > filtered_end:
+            filtered_start, filtered_end = filtered_end, filtered_start
+
+    def in_period(summary: Any) -> bool:
+        return bool(summary.fiscal_period_end and filtered_start <= summary.fiscal_period_end <= filtered_end)
+
+    gift_cards = [summary for summary in gift_cards if in_period(summary)]
+    bonus_club = [summary for summary in bonus_club if in_period(summary)]
+    segments = [summary for summary in segments if in_period(summary)]
+    option_map: dict[str, str] = {}
+    for summary in available_associate_summaries:
+        raw = summary.raw_json if isinstance(summary.raw_json, dict) else {}
+        for row in raw.get("associate_rows", []) if isinstance(raw.get("associate_rows"), list) else []:
+            if not isinstance(row, dict):
+                continue
+            number = str(row.get("associate_number", "")).strip()
+            name = str(row.get("name", "")).strip()
+            if number and name:
+                option_map.setdefault(number, name)
+    options = [{"value": number, "label": name} for number, name in sorted(option_map.items(), key=lambda item: item[1].casefold())]
+    selected = str(request.GET.get("associate", "")).strip()
+    if selected not in option_map:
+        selected = options[0]["value"] if options else ""
+    selected_label = option_map.get(selected, "")
+
+    rows = _performance_rows(gift_cards, bonus_club, selected)
+    segment_rows = _performance_segment_rows(segments, selected_label) if selected_label else []
+    segment_listed = bool(segment_rows)
+    chart_svg = _performance_chart_svg(_performance_chart_series(gift_cards, bonus_club, segments, selected, selected_label))
+    period_label = f"{_format_display_date(filtered_start)} – {_format_display_date(filtered_end)}"
+    return {
+        "date_filter": date_filter,
+        "date_options": [("last_week", "Last week"), ("month", "Current month"), ("quarter", "Current quarter"), ("range", "Custom range")],
+        "range_start": filtered_start.isoformat(),
+        "range_end": filtered_end.isoformat(),
+        "associate_options": options,
+        "selected_associate": selected,
+        "selected_label": selected_label,
+        "rows": rows,
+        "segment_rows": segment_rows,
+        "segment_listed": segment_listed,
+        "chart_svg": chart_svg,
+        "period_label": period_label,
+    }
+
+
+def _performance_rows(gift_cards: list[GiftCardsSummary], bonus_club: list[BonusClubSummary], selected: str) -> list[dict[str, object]]:
+    by_date: dict[date, dict[str, object]] = {}
+    for summary, kind in [(summary, "gift") for summary in gift_cards] + [(summary, "bonus") for summary in bonus_club]:
+        if not summary.fiscal_period_end:
+            continue
+        raw = summary.raw_json if isinstance(summary.raw_json, dict) else {}
+        match = _find_associate_row(raw.get("associate_rows"), selected)
+        if not isinstance(match, dict):
+            continue
+        metrics = match.get("metrics") if isinstance(match.get("metrics"), dict) else {}
+        entry = by_date.setdefault(summary.fiscal_period_end, {"date": _format_display_date(summary.fiscal_period_end), "gift": {}, "bonus": {}})
+        entry[kind] = metrics
+    rows: list[dict[str, object]] = []
+    totals: dict[str, list[float]] = {"gift_total": [], "gift_bonus": [], "gift_pct": [], "bonus_total": [], "bonus_club": [], "bonus_pct": []}
+    for period_end in sorted(by_date):
+        entry = by_date[period_end]
+        gift = entry["gift"] if isinstance(entry["gift"], dict) else {}
+        bonus = entry["bonus"] if isinstance(entry["bonus"], dict) else {}
+        values = [entry["date"], _format_number(gift.get("total_transactions")), _format_number(gift.get("gc_bonus_transactions")), _format_percent(gift.get("bonus_percent")), _format_number(bonus.get("total_transactions")), _format_number(bonus.get("transactions_with_club")), _format_percent(bonus.get("capture_rate"))]
+        rows.append({"period_end": period_end, "values": values, "row_class": "report-week-row"})
+        for key, metrics, metric in [("gift_total", gift, "total_transactions"), ("gift_bonus", gift, "gc_bonus_transactions"), ("gift_pct", gift, "bonus_percent"), ("bonus_total", bonus, "total_transactions"), ("bonus_club", bonus, "transactions_with_club"), ("bonus_pct", bonus, "capture_rate")]:
+            number = _coerce_number(metrics.get(metric))
+            if number is not None:
+                totals[key].append(number)
+    if not rows:
+        return []
+    rows.append({"values": ["Total", _format_number(sum(totals["gift_total"])), _format_number(sum(totals["gift_bonus"])), _format_percent((sum(totals["gift_bonus"]) / sum(totals["gift_total"]) * 100) if totals["gift_total"] else None), _format_number(sum(totals["bonus_total"])), _format_number(sum(totals["bonus_club"])), _format_percent((sum(totals["bonus_club"]) / sum(totals["bonus_total"]) * 100) if totals["bonus_total"] else None)], "row_class": "report-summary-row report-summary-total"})
+    rows.append({"values": ["Average", *[_format_average_number(totals[key]) for key in ("gift_total", "gift_bonus")], _format_percent(_average_number(totals["gift_pct"])), *[_format_average_number(totals[key]) for key in ("bonus_total", "bonus_club")], _format_percent(_average_number(totals["bonus_pct"])),], "row_class": "report-summary-row report-summary-average"})
+    rows.append({
+        "values": [
+            "Trend", "", "", _performance_trend(rows, 3), "", "", _performance_trend(rows, 6),
+        ],
+        "row_class": "report-summary-row report-summary-trend",
+    })
+    return rows
+
+
+def _performance_trend(rows: list[dict[str, object]], index: int) -> str:
+    weekly = [row for row in rows if row.get("period_end")]
+    values: list[float] = []
+    for row in weekly:
+        row_values = row.get("values")
+        if isinstance(row_values, list) and index < len(row_values):
+            number = _coerce_number(row_values[index])
+            if number is not None:
+                values.append(number)
+    if len(values) < 2:
+        return "—"
+    change = values[-1] - values[0]
+    if abs(change) < 0.005:
+        return "No change"
+    return f"{'↑' if change > 0 else '↓'} {abs(change):.2f} pts"
+
+
+def _performance_segment_rows(segments: list[SegmentsSummary], selected_label: str) -> list[dict[str, object]]:
+    """Reuse range totals without accepting an unlisted manager fallback."""
+    selected_name = _normalize_person_name(selected_label)
+    listed_segments: list[SegmentsSummary] = []
+    for summary in segments:
+        raw = summary.raw_json if isinstance(summary.raw_json, dict) else {}
+        manager_rows = raw.get("manager_rows") if isinstance(raw.get("manager_rows"), list) else []
+        if any(
+            isinstance(row, dict)
+            and _normalize_person_name(row.get("name")) == selected_name
+            and isinstance(row.get("metrics"), dict)
+            and any(value not in (None, "") for value in cast(dict[str, object], row.get("metrics", {})).values())
+            for row in manager_rows
+        ):
+            listed_segments.append(summary)
+    return _segments_range_report_rows(listed_segments, selected_label) if listed_segments else []
+
+
+def _performance_chart_series(gift_cards: list[GiftCardsSummary], bonus_club: list[BonusClubSummary], segments: list[SegmentsSummary], selected: str, selected_label: str) -> list[dict[str, object]]:
+    by_date: dict[date, dict[str, object]] = {}
+    metric_specs = [
+        (gift_cards, "Gift Card Bonus %", "bonus_percent", "Store Gift Card Bonus %"),
+        (bonus_club, "Bonus Club Capture %", "capture_rate", "Store Bonus Club Capture %"),
+    ]
+    for summaries, label, metric, store_label in metric_specs:
+        for summary in summaries:
+            if not summary.fiscal_period_end:
+                continue
+            raw = summary.raw_json if isinstance(summary.raw_json, dict) else {}
+            match = _find_associate_row(raw.get("associate_rows"), selected)
+            metrics = match.get("metrics") if isinstance(match, dict) and isinstance(match.get("metrics"), dict) else {}
+            value = _coerce_number(metrics.get(metric))
+            if value is not None:
+                by_date.setdefault(summary.fiscal_period_end, {})[metric] = value
+            store_total = raw.get("store_total")
+            store_metrics = store_total.get("metrics") if isinstance(store_total, dict) and isinstance(store_total.get("metrics"), dict) else {}
+            store_value = _coerce_number(store_metrics.get(metric))
+            if store_value is not None:
+                by_date.setdefault(summary.fiscal_period_end, {})[store_label] = store_value
+    for summary in segments:
+        if not summary.fiscal_period_end:
+            continue
+        raw = summary.raw_json if isinstance(summary.raw_json, dict) else {}
+        match = next((row for row in (raw.get("manager_rows") or []) if isinstance(row, dict) and _normalize_person_name(row.get("name")) == _normalize_person_name(selected_label)), None)
+        metrics = match.get("metrics") if isinstance(match, dict) and isinstance(match.get("metrics"), dict) else {}
+        value = _coerce_number(metrics.get("success_pct"))
+        if value is not None:
+            by_date.setdefault(summary.fiscal_period_end, {})["success_pct"] = value
+        store_total = raw.get("store_total")
+        store_metrics = store_total.get("metrics") if isinstance(store_total, dict) and isinstance(store_total.get("metrics"), dict) else {}
+        store_value = _coerce_number(store_metrics.get("success_pct"))
+        if store_value is not None:
+            by_date.setdefault(summary.fiscal_period_end, {})["Store Segment Success %"] = store_value
+    labels = [period_end.strftime("%m/%d/%y") for period_end in sorted(by_date)]
+    series_specs = [
+        ("bonus_percent", "Gift Card Bonus %"),
+        ("capture_rate", "Bonus Club Capture %"),
+        ("success_pct", "Segment Success %"),
+        ("Store Gift Card Bonus %", "Store Gift Card Bonus %"),
+        ("Store Bonus Club Capture %", "Store Bonus Club Capture %"),
+        ("Store Segment Success %", "Store Segment Success %"),
+    ]
+    return [{"label": label, "points": [by_date[period].get(key) for period in sorted(by_date)]} for key, label in series_specs if any(by_date[period].get(key) is not None for period in sorted(by_date))] + [{"labels": labels}]
+
+
+def _performance_chart_svg(series: list[dict[str, object]]) -> str:
+    labels_obj = series[-1].get("labels", []) if series else []
+    labels = labels_obj if isinstance(labels_obj, list) else []
+    plotted = series[:-1] if series and "labels" in series[-1] else series
+    if not plotted:
+        return ""
+    width, height, left, top, chart_width, chart_height = 720, 280, 52, 24, 640, 190
+    colors = ["#dc2626" if str(item.get("label", "")).startswith("Store ") else color for item, color in zip(plotted, ["#5b7cfa", "#0f8b4c", "#f97316", "#5b7cfa", "#0f8b4c", "#f97316"])]
+    parts = [f'<svg class="performance-chart" role="img" aria-label="Associate performance trend line graph" viewBox="0 0 {width} {height}" data-series="{len(plotted)}">']
+    parts.append(f'<line x1="{left}" y1="{top + chart_height}" x2="{left + chart_width}" y2="{top + chart_height}" stroke="currentColor" opacity=".35"/><line x1="{left}" y1="{top}" x2="{left}" y2="{top + chart_height}" stroke="currentColor" opacity=".35"/>')
+    for tick in (0, 25, 50, 75, 100):
+        y = top + chart_height - (tick / 100 * chart_height)
+        parts.append(f'<text x="{left - 8}" y="{y + 4:.1f}" text-anchor="end" class="chart-y-label" font-size="10">{tick}</text>')
+    for index, label in enumerate(labels):
+        x = left + (chart_width * index / max(len(labels) - 1, 1))
+        parts.append(f'<text x="{x:.1f}" y="{top + chart_height + 18}" text-anchor="middle" class="chart-label" font-size="10">{escape(str(label))}</text>')
+    for index, item in enumerate(plotted):
+        values = item.get("points", [])
+        points: list[str] = []
+        point_positions: list[tuple[float, float, float]] = []
+        for point_index, value in enumerate(values if isinstance(values, list) else []):
+            if value is None:
+                continue
+            x = left + (chart_width * point_index / max(len(labels) - 1, 1))
+            y = top + chart_height - (float(value) / 100 * chart_height)
+            points.append(f"{x:.1f},{y:.1f}")
+            point_positions.append((x, y, float(value)))
+        if points:
+            label = escape(str(item.get("label", "")), quote=True)
+            color = colors[index % len(colors)]
+            parts.append(f'<polyline fill="none" stroke="{color}" stroke-width="2" points="{" ".join(points)}" data-series-label="{label}"/>')
+            for x, y, value in point_positions:
+                # Stagger labels from different series and keep them inside the plot.
+                label_y = max(top + 10, min(top + chart_height - 4, y - 7 - (index % 3) * 9))
+                value_label = escape(f'{Decimal(str(float(value))).normalize():f}%')
+                parts.append(
+                    f'<text x="{x:.1f}" y="{label_y:.1f}" text-anchor="middle" '
+                    f'class="chart-point-label" font-size="9" fill="{color}" '
+                    f'paint-order="stroke" stroke="white" stroke-width="3" stroke-opacity=".85">{value_label}</text>'
+                )
+    parts.append('<g class="chart-legend" aria-label="Chart legend">')
+    legend_items: list[tuple[str, str]] = []
+    store_legend_added = False
+    for index, item in enumerate(plotted):
+        item_label = str(item.get("label", ""))
+        if item_label.startswith("Store "):
+            if store_legend_added:
+                continue
+            store_legend_added = True
+            legend_items.append(("Store Performance", colors[index % len(colors)]))
+        else:
+            legend_items.append((item_label, colors[index % len(colors)]))
+    legend_x = 56
+    for label_text, color in legend_items:
+        label = escape(label_text)
+        parts.append(f'<line x1="{legend_x}" y1="255" x2="{legend_x + 12}" y2="255" stroke="{color}" stroke-width="2"/><text x="{legend_x + 16}" y="258" fill="{color}" class="chart-legend-item" font-size="8">{label}</text>')
+        legend_x += 16 + max(34, len(label_text) * 4.2) + 12
+    parts.append("</g>")
+    parts.append("</svg>")
+    return mark_safe("".join(parts))
+
+
 def report_section(request: HttpRequest, number: int = 1) -> HttpResponse:
+    context = _report_context(request, number)
+    return render(request, "reports/report_section.html", context)
+
+
+def report_pdf(request: HttpRequest, number: int = 1) -> HttpResponse:
+    context = _report_context(request, number)
+    report = cast(dict[str, Any], context["report"])
+    html = render(request, "reports/report_pdf.html", context).content.decode("utf-8")
+    pdf = HTML(string=html, base_url=request.build_absolute_uri("/")).write_pdf()
+    response = HttpResponse(pdf or b"", content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{context["report_pdf_filename"]}"'
+    return response
+
+
+def _report_pdf_filename(report: dict[str, Any], request: HttpRequest, context: dict[str, Any]) -> str:
+    """Build a safe, useful filename without changing uploaded source names."""
+
+    report_names = {
+        "weekly_sales": "Weekly Sales Report",
+        "ranking": "Ranking Report",
+        "segments": "Segments Report",
+        "gift_cards": "Gift Cards Report",
+        "bonus_club": "Bonus Club Report",
+    }
+    report_name = report_names.get(str(report.get("slug") or ""), "Report 6")
+    selection = str(request.GET.get("date_filter", "last_week"))
+    if selection == "year":
+        suffix = "year"
+    elif selection == "range":
+        start_value = _parse_date(str(context.get("report_range_start") or ""))
+        end_value = _parse_date(str(context.get("report_range_end") or ""))
+        if start_value and end_value and start_value > end_value:
+            start_value, end_value = end_value, start_value
+        start = _filename_date(start_value)
+        end = _filename_date(end_value)
+        suffix = f"{start} to {end}"
+    elif selection == "week":
+        suffix = _filename_date(context.get("report_week_end"))
+    else:
+        suffix = {
+            "last_week": "last week",
+            "month": "current month",
+            "quarter": "current quarter",
+            "all": "all",
+        }.get(selection, "current-view")
+    safe_name = re.sub(r"[^A-Za-z0-9 .:-]+", "", report_name)
+    safe_name = re.sub(r"\s+", " ", safe_name).strip(" .-") or "Report"
+    safe_suffix = re.sub(r"[^A-Za-z0-9 .:-]+", "", suffix)
+    safe_suffix = re.sub(r"\s+", " ", safe_suffix).strip(" .-") or "current-view"
+    return f"{safe_name}: {safe_suffix}.pdf"
+
+
+def _filename_date(value: object) -> str:
+    parsed = _parse_date(str(value or ""))
+    return parsed.strftime("%m-%d-%y") if parsed else "unspecified-date"
+
+
+def _report_context(request: HttpRequest, number: int) -> dict[str, Any]:
     report = REPORTS.get(number)
     if report is None:
         raise Http404("Unknown report type.")
@@ -131,11 +503,16 @@ def report_section(request: HttpRequest, number: int = 1) -> HttpResponse:
         report_range_end=report_date_state["range_end"],
         report_associate_options=report_date_state["associate_options"],
         report_associate_selected=report_date_state["selected_associate"],
+        report_date_state_year=report_date_state["year"],
         report_view_title=str(report.get("viewer_title", "Weekly report data")),
         report_view_note=str(report_date_state.get("note") or report.get("viewer_note", "Newest week first, with each week in its own row.")),
         report_table_class=report_date_state["table_class"],
+        report_pdf_url=f'{reverse("reports:report-pdf", kwargs={"number": number})}?{request.META.get("QUERY_STRING", "")}' if request.META.get("QUERY_STRING") else reverse("reports:report-pdf", kwargs={"number": number}),
     )
-    return render(request, "reports/report_section.html", context)
+    report_pdf_filename = _report_pdf_filename(report, request, context)
+    context["report_pdf_filename"] = report_pdf_filename
+    context["report_pdf_title"] = report_pdf_filename.removesuffix(".pdf")
+    return context
 
 
 def report_history(request: HttpRequest, number: int = 1) -> HttpResponse:
@@ -559,7 +936,7 @@ def _find_segments_manager_row(manager_rows: object, selected_manager: str) -> d
             if not isinstance(row, dict):
                 continue
             name = str(row.get("name", "")).strip()
-            if selected_manager == name:
+            if _normalize_person_name(selected_manager) == _normalize_person_name(name):
                 return row
     for row in manager_rows:
         if isinstance(row, dict):
@@ -1029,6 +1406,15 @@ def _bonus_club_associate_report_rows(summaries: list[BonusClubSummary], selecte
     return rows
 
 
+def _normalize_person_name(value: object) -> str:
+    """Match display-only case/whitespace and ``Last, First`` differences."""
+    name = " ".join(str(value or "").split()).casefold()
+    if "," not in name:
+        return name
+    last, first = name.split(",", 1)
+    return " ".join(f"{first} {last}".split())
+
+
 def _find_associate_row(associate_rows: object, selected_associate: str) -> dict[str, object] | None:
     if not isinstance(associate_rows, list):
         return None
@@ -1038,7 +1424,7 @@ def _find_associate_row(associate_rows: object, selected_associate: str) -> dict
                 continue
             associate_number = str(row.get("associate_number", "")).strip()
             name = str(row.get("name", "")).strip()
-            if selected_associate == associate_number or selected_associate == name:
+            if selected_associate == associate_number or _normalize_person_name(selected_associate) == _normalize_person_name(name):
                 return row
     for row in associate_rows:
         if isinstance(row, dict):
@@ -1400,6 +1786,7 @@ def _report_date_state(request: HttpRequest, report_type: str) -> dict[str, obje
         "week_end": week_end_text,
         "range_start": range_start_text,
         "range_end": range_end_text,
+        "year": latest_fiscal_year,
         "mode": mode,
         "note": note,
         "associate_options": associate_options,
@@ -1435,6 +1822,12 @@ def _dashboard_weekly_sales_summaries(limit: int = 6) -> list[WeeklySalesSummary
     if limit > 0:
         summaries = summaries[-limit:]
     return summaries
+
+
+def _dashboard_title(summaries: list[WeeklySalesSummary]) -> str:
+    if not summaries:
+        return "214 Temecula"
+    return f"214 Temecula: Week {summaries[-1].fiscal_week:02d}"
 
 
 def _dashboard_latest_summary(model: type[Any]) -> Any | None:

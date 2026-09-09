@@ -13,8 +13,19 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bearbiz}
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-bearbiz}
+      PGUSER: ${POSTGRES_USER:-bearbiz}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-bearbiz}
+      BACKUP_ROOT: /backups/bearbiz
+      BACKUP_LOCK_FILE: /backups/bearbiz/backup.lock
+      BACKUP_EXECUTION_MODE: direct
+      BACKUP_OWNER_UID: ${BACKUP_OWNER_UID:-1000}
+      BACKUP_OWNER_GID: ${BACKUP_OWNER_GID:-1000}
     volumes:
       - .:/app
+      - ${BACKUP_ROOT:-/home/tome/backups/bearbiz}:/backups/bearbiz
     ports:
       - "${WEB_PORT:-8002}:8000"
     depends_on:

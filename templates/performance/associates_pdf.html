@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>{{ report_pdf_title }}</title>
+    <style>
+      @page { size: Letter portrait; margin: 0.45in; }
+      * { box-sizing: border-box; }
+      body { font-family: sans-serif; color: #111827; font-size: 9pt; }
+      h1 { color: #123b66; font-size: 15pt; margin: 0 0 0.08in; }
+      h2 { color: #123b66; font-size: 10pt; margin: 0.14in 0 0.06in; }
+      p { margin: 0 0 0.12in; color: #374151; }
+      .context { border-bottom: 2px solid #2563eb; padding-bottom: 0.12in; }
+      .table-wrap { width: 100%; }
+      table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 7.5pt; margin-bottom: 0.12in; }
+      th, td { border: 1px solid #9ca3af; padding: 0.045in 0.055in; text-align: center; vertical-align: middle; overflow-wrap: anywhere; }
+      th { background: #dbeafe; color: #111827; font-weight: 700; }
+      td:first-child, th:first-child { text-align: left; }
+      thead { display: table-header-group; }
+      tbody tr { break-inside: avoid; page-break-inside: avoid; }
+      .report-grid-segments { break-before: auto; }
+      .report-grid-segments th, .report-grid-segments td { font-size: 7pt; }
+      .report-summary-row { background: #e8f1ff; font-weight: 700; }
+      .report-summary-trend { background: #cfe1ff; }
+      .chart { border: 1px solid #cbd5e1; padding: 0.06in; break-inside: avoid; page-break-inside: avoid; }
+      .performance-chart { display: block; width: 100%; height: auto; max-height: 4.6in; }
+      .empty { color: #6b7280; }
+    </style>
+  </head>
+  <body>
+    <div class="context">
+      <h1>{{ report_pdf_title }}</h1>
+      <p>Selected associate: <strong>{{ performance_associate_label }}</strong></p>
+      <p>Selected timeframe: {{ performance_period_label }}</p>
+    </div>
+
+    <h2>Bonus Club + Gift Cards</h2>
+    {% if performance_rows %}
+      <div class="table-wrap">
+        <table class="report-grid report-grid-associate">
+          <thead><tr><th>Week ending</th><th>Club transactions</th><th>Club #</th><th>Club capture %</th><th>GC transactions</th><th>GC bonus</th><th>GC bonus %</th></tr></thead>
+          <tbody>{% for row in performance_rows %}<tr class="{{ row.row_class|default:'' }}"><td>{{ row.values.0 }}</td><td>{{ row.values.4 }}</td><td>{{ row.values.5 }}</td><td>{{ row.values.6 }}</td><td>{{ row.values.1 }}</td><td>{{ row.values.2 }}</td><td>{{ row.values.3 }}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    {% else %}<p class="empty">No Gift Card or Bonus Club data is available for this selection.</p>{% endif %}
+
+    {% if performance_segment_listed %}
+      <h2>Segment Accountability</h2>
+      <table class="report-grid report-grid-segments">
+        <thead><tr>{% for header in segment_headers %}<th>{{ header }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for row in performance_segment_rows %}<tr class="{{ row.row_class|default:'' }}">{% for value in row.values %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+      </table>
+    {% endif %}
+
+    <h2>Performance trend</h2>
+    {% if performance_chart_svg %}<div class="chart">{{ performance_chart_svg }}</div>{% else %}<p class="empty">No chart data is available for this selection.</p>{% endif %}
+  </body>
+</html>

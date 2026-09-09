@@ -160,8 +160,30 @@
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;
-        align-items: flex-start;
+        align-items: center;
         gap: 0.75rem 1rem;
+        padding-top: 0.65rem;
+      }
+      .report-toolbar > .report-date-tabs,
+      .report-toolbar > .page-action {
+        align-self: center;
+      }
+      .report-toolbar .report-date-tabs {
+        margin: 0;
+      }
+      .report-toolbar-actions {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-left: auto;
+      }
+      .report-toolbar .tab,
+      .report-toolbar .page-action {
+        padding: 0.42rem 0.7rem;
+        font-size: 0.9rem;
+        line-height: 1.1;
+        border-radius: 0.45rem;
       }
       .tab {
         display: inline-flex;
@@ -192,6 +214,31 @@
       .panel h2 {
         margin-top: 0;
       }
+      .backup-heading, .backup-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+      .backup-actions { justify-content: flex-start; margin: 1rem 0; }
+      .backup-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.75rem; }
+      .backup-facts div { padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.6rem; }
+      .backup-facts dt { color: var(--text-muted); font-size: 0.85rem; }
+      .backup-facts dd { margin: 0.25rem 0 0; overflow-wrap: anywhere; }
+      .restore-actions { text-align: right; white-space: nowrap; }
+      .backup-history-table { table-layout: fixed; min-width: 68rem; }
+      .backup-history-table .backup-col-id { width: 17%; }
+      .backup-history-table .backup-col-type { width: 10%; }
+      .backup-history-table .backup-col-timestamp { width: 18%; }
+      .backup-history-table .backup-col-size { width: 11%; }
+      .backup-history-table .backup-col-verification { width: 13%; }
+      .backup-history-table .backup-col-restore { width: 31%; }
+      .restore-form { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: nowrap; gap: 0.35rem; }
+      .restore-form select { max-width: 11rem; min-width: 8.5rem; padding: 0.35rem 1.8rem 0.35rem 0.5rem; }
+      .restore-button { background: #b42318; border-color: #b42318; color: #fff; font-weight: 700; white-space: nowrap; }
+      .restore-button:hover { background: #8f1d14; border-color: #8f1d14; }
+      .restore-button:focus-visible { outline: 3px solid color-mix(in srgb, #b42318 55%, Canvas); outline-offset: 2px; }
+      @media (max-width: 1100px) {
+        .restore-form { flex-wrap: wrap; }
+      }
+      .status-badge { border-radius: 999px; padding: 0.3rem 0.7rem; font-weight: 700; }
+      .status-badge.healthy { background: #18794e; color: white; }
+      .status-badge.warning { background: #a15c00; color: white; }
       .dashboard-split-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -202,12 +249,16 @@
       }
       .dashboard-card {
         margin-bottom: 0;
+        padding-top: 0.7rem;
+        padding-bottom: 0.7rem;
+        gap: 0.25rem;
       }
       .dashboard-card,
       .dashboard-card .empty {
         text-align: center;
       }
       .dashboard-card h2 {
+        margin: 0;
         text-align: center;
       }
       .dashboard-metric-value {
@@ -216,7 +267,7 @@
         line-height: 1;
         letter-spacing: -0.04em;
         color: var(--accent);
-        padding: 0.2rem 0 0.4rem;
+        padding: 0;
       }
       .theme-settings {
         display: grid;
@@ -378,6 +429,34 @@
       .table-wrap {
         overflow-x: auto;
       }
+      .performance-filter-form {
+        display: grid;
+        grid-template-columns: minmax(12rem, 1.35fr) minmax(10rem, 1fr) minmax(9rem, 1fr) minmax(9rem, 1fr) auto;
+        gap: 0.65rem 0.75rem;
+        align-items: end;
+      }
+      .performance-filter-form label { min-width: 0; margin: 0; }
+      .performance-filter-form input,
+      .performance-filter-form select { width: 100%; min-width: 0; }
+      .performance-filter-form button { white-space: nowrap; }
+      .performance-filter-actions {
+        display: inline-flex;
+        align-items: end;
+        gap: 0.5rem;
+        white-space: nowrap;
+      }
+      .performance-filter-action {
+        width: 4.25rem;
+        height: 2.15rem;
+        padding: 0.55rem 0.9rem;
+        font-size: 1rem;
+        line-height: 1.45;
+        border-radius: 999px;
+        justify-content: center;
+      }
+      .performance-pdf-action { white-space: nowrap; }
+      .performance-associate-select { max-width: 14rem; }
+      .performance-period-label { margin: 0.65rem 0 0; }
       .report-cell {
         display: grid;
         gap: 0.18rem;
@@ -575,6 +654,12 @@
         border-color: color-mix(in srgb, #0a7a28 42%, var(--border-strong));
         font-weight: 700;
       }
+      .page-action.pdf-action {
+        background: #005ea8;
+        border-color: #004b87;
+        color: #fff;
+        font-weight: 700;
+      }
       .inline-actions {
         display: flex;
         flex-wrap: wrap;
@@ -600,6 +685,7 @@
       .report-count-note {
         margin: -0.25rem 0 1rem;
       }
+
       @media (max-width: 900px) {
         .app-shell { grid-template-columns: 1fr; }
         .sidebar {
@@ -609,6 +695,12 @@
           border-bottom: 1px solid var(--border);
         }
         .page-header { flex-direction: column; }
+        .performance-filter-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .performance-filter-form button { justify-self: start; }
+        .performance-filter-actions { justify-self: start; }
+      }
+      @media (max-width: 520px) {
+        .performance-filter-form { grid-template-columns: 1fr; }
       }
     </style>
     <script>
@@ -642,7 +734,7 @@
           {% for item in left_nav %}
             <div class="sidebar-item{% if item.css_class %} {{ item.css_class }}{% endif %}">
               <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">
-                <span aria-hidden="true">{% if item.label == 'Dashboard' %}🏠{% elif item.label == 'Uploads' %}📥{% elif item.label == 'Reports' %}📄{% elif item.label == 'Agent' %}🤖{% else %}⚙️{% endif %}</span>
+                <span aria-hidden="true">{% if item.label == 'Dashboard' %}🏠{% elif item.label == 'Performance' %}📈{% elif item.label == 'Uploads' %}📥{% elif item.label == 'Reports' %}📄{% elif item.label == 'Agent' %}🤖{% else %}⚙️{% endif %}</span>
                 <span class="label">{{ item.label }}</span>
               </a>
               {% if item.children %}
@@ -663,7 +755,7 @@
       <main>
         <header class="page-header">
           <div class="page-header-copy">
-            <div class="eyebrow">{{ section|default:page_title|default:"Bearbiz" }}</div>
+            <div class="eyebrow">{{ eyebrow|default:section|default:page_title|default:"Bearbiz" }}</div>
             <h1>{{ page_title|default:"Bearbiz" }}</h1>
             {% if page_subtitle %}<p class="muted">{{ page_subtitle }}</p>{% endif %}
           </div>

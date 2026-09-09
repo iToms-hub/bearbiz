@@ -6,9 +6,10 @@ from urllib.parse import urlencode
 from django.urls import reverse
 
 from apps.reports.catalog import report_label
+from bearbiz import __version__
 
 REPORT_NUMBERS = tuple(range(1, 7))
-APP_VERSION = "0.6.0"
+APP_VERSION = __version__
 
 
 def left_nav(active_section: str, active_number: int | None = None) -> list[dict[str, Any]]:
@@ -18,6 +19,11 @@ def left_nav(active_section: str, active_number: int | None = None) -> list[dict
             "label": "Dashboard",
             "url": reverse("dashboard"),
             "active": active_section == "dashboard",
+        },
+        {
+            "label": "Performance",
+            "url": reverse("performance"),
+            "active": active_section == "performance",
         },
         {
             "label": "Reports",
@@ -137,6 +143,7 @@ def settings_tabs(active: str) -> list[dict[str, Any]]:
         ("theme", "Theme", reverse("settings:index")),
         ("fiscal", "Fiscal year", reverse("settings:fiscal")),
         ("ai", "AI integration", reverse("settings:ai")),
+        ("backup", "Backup", reverse("settings:backup")),
     ]
     return [
         {"label": label, "url": url, "active": slug == active}

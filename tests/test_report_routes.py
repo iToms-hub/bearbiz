@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from pathlib import Path
 from types import SimpleNamespace
 from datetime import date, timedelta
@@ -8,6 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, override_settings
 from django.urls import reverse
 import pytest
+
 
 from apps.core.ai import AIAnalysisResult
 from apps.core.models import AIIntegrationSettings
@@ -84,7 +86,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert 'class="upload-file-row"' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v0.6.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v0.9.0' in history_html
         assert "Uploaded reports" in history_html
         assert "Settings" in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
@@ -232,6 +234,8 @@ def test_dashboard_shows_last_six_weekly_sales_rows_with_report_view_headers(cli
     assert response.status_code == 200
     html = response.content.decode()
     assert "Weekly Sales Reports" in html
+    assert "214 Temecula: Week 36" in html
+    assert '<div class="eyebrow">Dashboard</div>' in html
     assert "6-week sales report data" not in html
     assert "Sales" in html
     assert "LY Sales" in html
@@ -1281,7 +1285,7 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         assert 'Select a PDF' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v0.6.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v0.9.0' in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
         assert 'aria-label="Section tabs"' not in history_html
 
@@ -1293,6 +1297,24 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         assert 'aria-label="Report date selector"' in report_html
         assert reverse("reports:history-number", kwargs={"number": 5}) in report_html
         assert '<a class="page-action upload-action"' in report_html
+        assert """.report-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem 1rem;
+        padding-top: 0.65rem;""" in report_html
+        assert """.report-toolbar .report-date-tabs {
+        margin: 0;""" in report_html
+        assert """.report-toolbar > .report-date-tabs,
+      .report-toolbar > .page-action {
+        align-self: center;""" in report_html
+        assert """.report-toolbar .tab,
+      .report-toolbar .page-action {
+        padding: 0.42rem 0.7rem;
+        font-size: 0.9rem;
+        line-height: 1.1;
+        border-radius: 0.45rem;""" in report_html
         assert 'Showing 1 of 1 weeks.' in report_html
         assert 'aria-label="Section tabs"' not in report_html
 
@@ -1576,6 +1598,108 @@ def test_gift_cards_failed_detail_view_repairs_summary(client: Client, tmp_path:
 def _build_weekly_sales_pdf(lines: list[str]) -> bytes:
     body = "\n".join(lines)
     return f"%PDF-1.4\n{body}\n%%EOF".encode("latin1")
+
+
+@pytest.mark.django_db()
+def test_report_pdf_action_is_the_only_export_for_all_report_types_and_preserves_filters(client: Client) -> None:
+    query = {
+        "date_filter": "range",
+        "range_start": "2026-02-01",
+        "range_end": "2026-02-28",
+        "associate": "0079555",
+    }
+
+    for number in range(1, 7):
+        response = client.get(reverse("reports:report-number", kwargs={"number": number}), data=query)
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert "Print" not in html
+        assert "window.print" not in html
+        assert "print-action" not in html
+        assert "PDF" in html
+        assert "Uploads" not in html if number == 6 else "Uploads" in html
+        assert "date_filter=range" in html
+        assert "range_start=2026-02-01" in html
+        assert "range_end=2026-02-28" in html
+        assert "associate=0079555" in html
+        assert 'class="report-toolbar-actions"' in html
+        assert 'class="page-action pdf-action"' in html
+        assert 'class="page-action upload-action"' not in html if number == 6 else 'class="page-action upload-action"' in html
+        assert ".page-action.pdf-action" in html
+        assert "background: #005ea8;" in html
+        assert "color: #fff;" in html
+        if number != 6:
+            assert html.index('class="page-action pdf-action"') < html.index('class="page-action upload-action"')
+        assert 'download="' in html
+        assert ".report-week-row-latest" in html
+        assert ".report-summary-row" in html
+        assert ".report-spacer-row" in html
+
+        pdf_response = client.get(reverse("reports:report-pdf", kwargs={"number": number}), data=query)
+        assert pdf_response.status_code == 200
+        assert pdf_response["Content-Type"] == "application/pdf"
+        assert pdf_response["Content-Disposition"].startswith("attachment;")
+        report_names = {
+            1: "Weekly Sales Report",
+            2: "Ranking Report",
+            3: "Segments Report",
+            4: "Gift Cards Report",
+            5: "Bonus Club Report",
+            6: "Report 6",
+        }
+        assert pdf_response["Content-Disposition"].endswith(
+            f'filename="{report_names[number]}: 02-01-26 to 02-28-26.pdf"'
+        )
+        assert b"%PDF" in pdf_response.content[:16]
+
+
+@pytest.mark.django_db()
+def test_report_pdf_uses_compact_layout_and_fits_current_report_on_one_page(client: Client) -> None:
+    pdf_template = Path("templates/reports/report_pdf.html").read_text()
+    assert "@page { size: Letter portrait; margin: 0.6cm; }" in pdf_template
+    assert "font-size: 7pt;" in pdf_template
+    assert "padding: 0.06cm 0.08cm;" in pdf_template
+    assert "th, td {" in pdf_template
+    assert "text-align: center;" in pdf_template
+    pdfplumber = pytest.importorskip("pdfplumber")
+    response = client.get(reverse("reports:report-pdf", kwargs={"number": 1}), data={"date_filter": "last_week"})
+
+    assert response.status_code == 200
+    with pdfplumber.open(io.BytesIO(response.content)) as document:
+        assert len(document.pages) == 1
+        assert document.pages[0].height > document.pages[0].width
+
+
+@pytest.mark.django_db()
+@pytest.mark.parametrize(
+    ("query", "filename"),
+    [
+        ({"date_filter": "year"}, "Weekly Sales Report: year.pdf"),
+        ({"date_filter": "week", "week_end": "2026-02-07"}, "Weekly Sales Report: 02-07-26.pdf"),
+        ({"date_filter": "last_week"}, "Weekly Sales Report: last week.pdf"),
+        ({"date_filter": "month"}, "Weekly Sales Report: current month.pdf"),
+        ({"date_filter": "quarter"}, "Weekly Sales Report: current quarter.pdf"),
+        ({"date_filter": "all"}, "Weekly Sales Report: all.pdf"),
+    ],
+)
+def test_report_pdf_filename_reflects_date_selection(client: Client, query: dict[str, str], filename: str) -> None:
+    response = client.get(reverse("reports:report-pdf", kwargs={"number": 1}), data=query)
+
+    assert response.status_code == 200
+    assert response["Content-Disposition"].endswith(f'filename="{filename}"')
+
+
+@pytest.mark.django_db()
+def test_report_pdf_preserves_title_and_row_classes_in_pdf_template(client: Client) -> None:
+    response = client.get(reverse("reports:report-pdf", kwargs={"number": 1}), data={"date_filter": "last_week"})
+
+    assert response.status_code == 200
+    assert response["Content-Disposition"].endswith('filename="Weekly Sales Report: last week.pdf"')
+    assert b"%PDF" in response.content[:16]
+    html_response = client.get(reverse("reports:report-number", kwargs={"number": 1}), data={"date_filter": "last_week"})
+    html = html_response.content.decode()
+    assert 'download="Weekly Sales Report: last week.pdf"' in html
+    assert "report-week-row-latest" in html or "report-summary-row" in html
 
 
 def _build_pdf(lines: list[str]) -> bytes:

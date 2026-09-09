@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Performance · Associates{% endblock %}
+{% block content %}
+  <section class="panel performance-controls">
+    <form method="get" class="performance-filter-form performance-filter-grid">
+      <label>
+        Associate
+        <select name="associate" aria-label="Associate" class="performance-associate-select">
+          {% for option in performance_associate_options %}
+            <option value="{{ option.value }}" {% if option.value == performance_associate_selected %}selected{% endif %}>{{ option.label }}</option>
+          {% empty %}
+            <option value="">No associates available</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Date range
+        <select name="date_filter" aria-label="Date range" data-performance-date-filter>
+          {% for value, label in performance_date_options %}
+            <option value="{{ value }}" {% if value == performance_date_filter %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label data-performance-range-field>
+        Start
+        <input type="date" name="range_start" value="{{ performance_range_start }}">
+      </label>
+      <label data-performance-range-field>
+        End
+        <input type="date" name="range_end" value="{{ performance_range_end }}">
+      </label>
+      <div class="performance-filter-actions">
+        <button type="submit" class="performance-filter-action">Apply</button>
+        <a class="page-action pdf-action performance-pdf-action performance-filter-action" href="{% url 'performance-pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">PDF</a>
+      </div>
+    </form>
+    <p class="muted performance-period-label">Selected timeframe: {{ performance_period_label }}</p>
+  </section>
+
+  {% if performance_segment_listed %}
+    <section class="panel stack">
+      <h2>Segment Accountability</h2>
+      <p class="muted">Listed in Segment Accountability for the selected timeframe.</p>
+      <div class="table-wrap">
+        <table class="report-grid report-grid-associate striped">
+          <thead><tr>{% for header in segment_headers %}<th>{{ header }}</th>{% endfor %}</tr></thead>
+          <tbody>{% for row in performance_segment_rows %}<tr class="{{ row.row_class|default:'' }}">{% for value in row.values %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="panel stack" data-performance-combined>
+    <h2>{{ performance_associate_label|default:"Associate" }} · Bonus Club + Gift Cards</h2>
+    {% if performance_rows %}
+      <div class="table-wrap">
+        <table class="report-grid report-grid-associate striped">
+          <caption class="muted">Weekly detail</caption>
+          <thead><tr><th>Week ending</th><th>Club transactions</th><th>Club #</th><th>Club capture %</th><th>GC transactions</th><th>GC bonus</th><th>GC bonus %</th></tr></thead>
+          <tbody>
+            {% for row in performance_rows %}<tr class="{{ row.row_class }}"><td>{{ row.values.0 }}</td><td>{{ row.values.4 }}</td><td>{{ row.values.5 }}</td><td>{{ row.values.6 }}</td><td>{{ row.values.1 }}</td><td>{{ row.values.2 }}</td><td>{{ row.values.3 }}</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">No Gift Card or Bonus Club data is available for this associate in the selected timeframe.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel stack">
+    <h2>Performance trend</h2>
+    {% if performance_chart_svg %}{{ performance_chart_svg }}{% else %}<p class="empty">No chart data is available for this selection.</p>{% endif %}
+  </section>
+  <script>
+    (() => {
+      const filter = document.querySelector('[data-performance-date-filter]');
+      const fields = Array.from(document.querySelectorAll('[data-performance-range-field]'));
+      const update = () => fields.forEach((field) => { field.hidden = !filter || filter.value !== 'range'; });
+      if (filter) { filter.addEventListener('change', update); update(); }
+    })();
+  </script>
+{% endblock %}

@@ -6,7 +6,7 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 
-from apps.reports.views import dashboard
+from apps.reports.views import dashboard, performance, performance_pdf
 
 
 def health(request):
@@ -15,6 +15,8 @@ def health(request):
 
 urlpatterns = [
     path("", dashboard, name="dashboard"),
+    path("performance/", performance, name="performance"),
+    path("performance/pdf/", performance_pdf, name="performance-pdf"),
     path("reports/", include(("apps.reports.urls", "reports"), namespace="reports")),
     path("agent/", include(("apps.agent.urls", "agent"), namespace="agent")),
     path("settings/", include(("apps.core.urls", "settings"), namespace="settings")),
