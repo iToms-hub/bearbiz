@@ -11,9 +11,9 @@ ROOT = Path(__file__).parents[1]
 
 
 def test_csrf_trusted_origins_are_trimmed_and_empty_values_removed(monkeypatch) -> None:
-    monkeypatch.setenv("CSRF_TEST_ORIGINS", " https://one.example, ,https://two.example ")
+    monkeypatch.setenv("CSRF_TRUSTED_ORIGINS", " https://one.example, ,https://two.example ")
 
-    assert _parse_csv_env("CSRF_TEST_ORIGINS") == [
+    assert _parse_csv_env("CSRF_TRUSTED_ORIGINS") == [
         "https://one.example",
         "https://two.example",
     ]
