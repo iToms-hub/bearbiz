@@ -19,6 +19,18 @@ from .models import AIIntegrationSettings, FiscalYearSettings
 from .navigation import settings_tabs, shell_context
 
 
+def coming_soon(request: HttpRequest, feature: str) -> HttpResponse:
+    """Render a clear placeholder for navigation sections not yet implemented."""
+    context = shell_context(
+        section=feature.lower().replace(" ", "-"),
+        page_title=feature,
+        eyebrow=feature,
+        subtitle=f"{feature} is planned for a future Bearbiz release.",
+        coming_soon_feature=feature,
+    )
+    return render(request, "coming_soon.html", context)
+
+
 def settings_page(request: HttpRequest, slug: str = "theme") -> HttpResponse:
     if slug == "general":
         slug = "theme"

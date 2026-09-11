@@ -39,10 +39,52 @@ def test_newer_remote_version_adds_update_before_pinned_settings(monkeypatch: py
     items = navigation.left_nav("dashboard")
 
     assert [item["label"] for item in items] == [
-        "Dashboard", "Performance", "Reports", "Agent", "Update available", "Settings",
+        "Dashboard", "Reports", "Performance", "Missed Ops", "Payroll", "Product", "Parties",
+        "Agent", "Update available", "Settings",
     ]
     assert items[-1]["css_class"] == "nav-bottom"
     assert items[-2]["url"] == "https://github.com/iToms-hub/bearbiz/releases/latest"
+
+
+def test_primary_navigation_has_expected_routes_and_icon_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_remote_version(monkeypatch, b"0.9.0")
+
+    items = navigation.left_nav("product")
+
+    assert [(item["label"], item["url"], item["active"]) for item in items[:8]] == [
+        ("Dashboard", "/", False),
+        ("Reports", "/reports/", False),
+        ("Performance", "/performance/", False),
+        ("Missed Ops", "/missed-ops/", False),
+        ("Payroll", "/payroll/", False),
+        ("Product", "/product/", True),
+        ("Parties", "/parties/", False),
+        ("Agent", "/agent/", False),
+    ]
+    assert [item["icon_asset"] for item in items[:8]] == [
+        "bearbiz-dashboard.png", "bearbiz-reports.png", "bearbiz-performance.png",
+        "bearbiz-missed-ops.png", "bearbiz-payroll.png", "bearbiz-product.png",
+        "bearbiz-parties.png", "bearbiz-agent.png",
+    ]
+
+
+@pytest.mark.django_db()
+@pytest.mark.parametrize(
+    ("name", "feature"),
+    [("missed-ops", "Missed Ops"), ("payroll", "Payroll"), ("product", "Product"), ("parties", "Parties")],
+)
+def test_coming_soon_pages_are_explicit_and_active(name: str, feature: str) -> None:
+    response = Client().get(reverse(name))
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert f"<h1>{feature}</h1>" in html
+    assert f">{feature}</h2>" in html
+    assert "Coming soon" in html
+    assert "not available yet" in html
+    assert f'aria-label="{feature}"' in html
+    assert 'class="active"' in html
+    assert f'src="/static/images/bearbiz-{name}.png"' in html
 
 
 @pytest.mark.parametrize("remote", [b"0.9.0", b"0.8.9"])

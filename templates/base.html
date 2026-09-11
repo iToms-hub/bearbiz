@@ -800,7 +800,7 @@
               {% if not item.css_class %}
                 <div class="sidebar-item">
                   <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}" aria-label="{{ item.label }}" title="{{ item.title|default:item.label }}">
-                    {% if item.label == 'Dashboard' %}<img class="sidebar-nav-icon sidebar-dashboard-icon" src="{% static 'images/bearbiz-dashboard.png' %}" alt="Stitched Bearbiz house dashboard icon">{% elif item.label == 'Performance' %}<img class="sidebar-nav-icon" src="{% static 'images/bearbiz-performance.png' %}" alt="Stitched performance chart icon">{% elif item.label == 'Reports' %}<img class="sidebar-nav-icon" src="{% static 'images/bearbiz-reports.png' %}" alt="Stitched reports document icon">{% elif item.label == 'Agent' %}<img class="sidebar-nav-icon" src="{% static 'images/bearbiz-agent.png' %}" alt="Stitched Bearbiz agent headset icon">{% else %}<span class="sidebar-nav-icon" aria-hidden="true">{% if item.icon %}{{ item.icon }}{% elif item.label == 'Uploads' %}📥{% else %}⚙️{% endif %}</span>{% endif %}
+                    {% if item.icon_asset %}<img class="sidebar-nav-icon{% if item.label == 'Dashboard' %} sidebar-dashboard-icon{% endif %}" src="{% static 'images/'|add:item.icon_asset %}" alt="{{ item.icon_alt }}">{% else %}<span class="sidebar-nav-icon" aria-hidden="true">{% if item.icon %}{{ item.icon }}{% elif item.label == 'Uploads' %}📥{% else %}⚙️{% endif %}</span>{% endif %}
                     <span class="label">{{ item.label }}</span>
                   </a>
                   {% if item.children %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ coming_soon_feature }} · Coming soon{% endblock %}
+{% block content %}
+  <section class="card" aria-labelledby="coming-soon-title">
+    <p class="eyebrow">Coming soon</p>
+    <h2 id="coming-soon-title">{{ coming_soon_feature }}</h2>
+    <p class="muted">This feature is not available yet. We’re working on it and will include it in a future Bearbiz release.</p>
+  </section>
+{% endblock %}
