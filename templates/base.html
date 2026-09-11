@@ -108,6 +108,17 @@
         display: grid;
         gap: 0.35rem;
       }
+      .sidebar-nav-icon {
+        width: 1.5rem;
+        height: 1.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+      }
+      .sidebar-dashboard-icon {
+        object-fit: contain;
+      }
       .sidebar a,
       .sidebar .sidebar-link {
         display: flex;
@@ -780,7 +791,7 @@
               {% if not item.css_class %}
                 <div class="sidebar-item">
                   <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}" aria-label="{{ item.label }}" title="{{ item.title|default:item.label }}">
-                    <span aria-hidden="true">{% if item.icon %}{{ item.icon }}{% elif item.label == 'Dashboard' %}🏠{% elif item.label == 'Performance' %}📈{% elif item.label == 'Uploads' %}📥{% elif item.label == 'Reports' %}📄{% elif item.label == 'Agent' %}🤖{% else %}⚙️{% endif %}</span>
+                    {% if item.label == 'Dashboard' %}<img class="sidebar-nav-icon sidebar-dashboard-icon" src="{% static 'images/bearbiz-dashboard.png' %}" alt="Stitched Bearbiz house dashboard icon">{% else %}<span class="sidebar-nav-icon" aria-hidden="true">{% if item.icon %}{{ item.icon }}{% elif item.label == 'Performance' %}📈{% elif item.label == 'Uploads' %}📥{% elif item.label == 'Reports' %}📄{% elif item.label == 'Agent' %}🤖{% else %}⚙️{% endif %}</span>{% endif %}
                     <span class="label">{{ item.label }}</span>
                   </a>
                   {% if item.children %}

@@ -97,6 +97,9 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert 'class="sidebar-logo-compact"' in html
     assert 'src="/static/images/bearbiz-mark.png"' in html
     assert 'alt="Bearbiz logo"' in html
+    assert 'src="/static/images/bearbiz-dashboard.png"' in html
+    assert 'alt="Stitched Bearbiz house dashboard icon"' in html
+    assert '>🏠</span>' not in html
 
     base_template = Path(navigation.__file__).parents[2] / "templates" / "base.html"
     template = base_template.read_text()
@@ -112,6 +115,15 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     compact_logo = static_dir / "bearbiz-mark.png"
     assert compact_logo.is_file()
     assert compact_logo.read_bytes()[25] == 6  # PNG RGBA color type.
+    dashboard_logo = static_dir / "bearbiz-dashboard.png"
+    assert dashboard_logo.is_file()
+    assert dashboard_logo.read_bytes()[25] == 6  # PNG RGBA color type.
+    assert dashboard_logo.stat().st_size < 750_000
+
+    assert ".sidebar-nav-icon" in template
+    assert ".sidebar-dashboard-icon" in template
+    assert "width: 1.5rem;" in template
+    assert "height: 1.5rem;" in template
 
 
 @pytest.mark.django_db()
