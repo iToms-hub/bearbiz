@@ -13,7 +13,7 @@ Create a Portainer stack from the public repository:
 - Compose path: `compose.portainer.yml`
 - Repository authentication: off; TLS verification: on
 
-The stack defaults to `ghcr.io/itoms-hub/bearbiz:0.9.5` and can override it
+The stack defaults to `ghcr.io/itoms-hub/bearbiz:0.9.6` and can override it
 with `BEARBIZ_IMAGE_TAG`. It uses explicit Docker volumes named
 `bearbiz_postgres`, `bearbiz_media`, and `bearbiz_backups`, exposes `8002:8000`,
 waits for the PostgreSQL healthcheck, runs migrations before Gunicorn, and
@@ -35,7 +35,7 @@ POSTGRES_DB=bearbiz
 POSTGRES_USER=bearbiz
 BACKUP_OWNER_UID=1000
 BACKUP_OWNER_GID=1000
-BEARBIZ_IMAGE_TAG=0.9.5
+BEARBIZ_IMAGE_TAG=0.9.6
 GUNICORN_WORKERS=3
 ```
 

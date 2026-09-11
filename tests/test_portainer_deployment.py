@@ -7,7 +7,7 @@ ROOT = Path(__file__).parents[1]
 def test_portainer_stack_uses_portable_image_and_persistent_volumes() -> None:
     compose = (ROOT / "compose.portainer.yml").read_text()
 
-    assert 'image: "ghcr.io/itoms-hub/bearbiz:${BEARBIZ_IMAGE_TAG:-0.9.5}"' in compose
+    assert 'image: "ghcr.io/itoms-hub/bearbiz:${BEARBIZ_IMAGE_TAG:-0.9.6}"' in compose
     assert "build:" not in compose
     assert "- .:/app" not in compose
     assert "SECRET_KEY: \"${SECRET_KEY:?" in compose
@@ -67,7 +67,7 @@ def test_portainer_instructions_use_ui_variables() -> None:
         assert variable in readme
 
     reference = (ROOT / "docs/portainer-deployment.md").read_text()
-    assert "ghcr.io/itoms-hub/bearbiz:0.9.5" in reference
+    assert "ghcr.io/itoms-hub/bearbiz:0.9.6" in reference
     assert "stack.env" in reference
     assert "Packages" in reference
 
@@ -78,3 +78,13 @@ def test_docker_image_copies_runtime_files_not_source_mount() -> None:
     for directory in ("bearbiz", "apps", "templates", "static", "scripts"):
         assert f"COPY {directory} /app/{directory}" in dockerfile
     assert "mkdir -p /app/media/reports /app/staticfiles" in dockerfile
+    assert "collectstatic --noinput" in dockerfile
+
+
+def test_static_assets_are_packaged_for_gunicorn_production() -> None:
+    settings = (ROOT / "bearbiz/settings.py").read_text()
+    dependencies = (ROOT / "pyproject.toml").read_text()
+
+    assert '"whitenoise>=6.9,<7.0"' in dependencies
+    assert '"whitenoise.middleware.WhiteNoiseMiddleware"' in settings
+    assert "STATIC_URL = \"/static/\"" in settings

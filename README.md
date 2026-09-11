@@ -3,7 +3,7 @@
 Bearbiz is a BI platform for weekly report uploads, PDF extraction, dashboards,
 and printable/exportable sales reporting.
 
-Current version: 0.9.5
+Current version: 0.9.6
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ before opening the UI:
 
 ```bash
 curl --fail http://localhost:8002/health/
-# Expected shape: {"status":"ok","version":"0.9.5"}
+# Expected shape: {"status":"ok","version":"0.9.6"}
 ```
 
 Open `http://localhost:8002/admin/` for the admin site. The Compose web
@@ -78,15 +78,16 @@ the app, and run a production WSGI server such as Gunicorn instead of
 `runserver`. Restrict the Docker socket and backup directory permissions, and
 pin image/dependency versions as part of your deployment process.
 
-Run `collectstatic` as part of an image or release step when serving static
-assets from a separate web server. Apply migrations as a deliberate release
+Run `collectstatic` as part of the image build; the production image includes WhiteNoise and
+serves `/static/` directly from the container, so no host static bind mount is
+required. Apply migrations as a deliberate release
 operation, with a verified database backup first; do not rely on a web
 container restart to hide migration failures.
 
 ## Portainer Community Edition deployment
 
 The CE stack is a portable image-based deployment. It pulls the pinned
-`ghcr.io/itoms-hub/bearbiz:0.9.5` image by default; it does not build from a
+`ghcr.io/itoms-hub/bearbiz:0.9.6` image by default; it does not build from a
 checkout, use host bind paths, mount the Docker socket, or reference an
 external `env_file`. The web container runs migrations before Gunicorn starts,
 waits for PostgreSQL health, persists data in the explicitly named Docker
@@ -118,11 +119,11 @@ POSTGRES_DB           bearbiz
 POSTGRES_USER         bearbiz
 BACKUP_OWNER_UID      1000
 BACKUP_OWNER_GID      1000
-BEARBIZ_IMAGE_TAG     0.9.5
+BEARBIZ_IMAGE_TAG     0.9.6
 GUNICORN_WORKERS      3
 ```
 
-`BEARBIZ_IMAGE_TAG` is optional; omit it to use `0.9.5`. The stack sets
+`BEARBIZ_IMAGE_TAG` is optional; omit it to use `0.9.6`. The stack sets
 `POSTGRES_HOST=db` and the internal backup paths itself. Add any reverse-proxy
 hostname to both allowed-host variables. Remove blank placeholder rows before
 deploying.

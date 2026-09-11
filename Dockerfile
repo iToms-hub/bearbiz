@@ -48,6 +48,10 @@ RUN mkdir -p /app/media/reports /app/staticfiles \
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -e .
 
+# Bake static assets into the release image so Gunicorn can serve them without
+# a source-tree or host static bind mount.
+RUN python manage.py collectstatic --noinput
+
 EXPOSE 8000
 
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
