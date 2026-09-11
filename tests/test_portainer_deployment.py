@@ -16,6 +16,8 @@ def test_portainer_stack_builds_immutable_runtime_and_persists_host_data() -> No
     assert "ALLOWED_HOSTS: \"${ALLOWED_HOSTS:?" in compose
     assert "POSTGRES_PASSWORD: \"${POSTGRES_PASSWORD:?" in compose
     assert "env_file:" not in compose
+    assert "BEARBIZ_ENV_FILE" not in compose
+    assert "/opt/bearbiz.env" not in compose
     assert "POSTGRES_HOST: db" in compose
     assert "condition: service_healthy" in compose
     assert "migrate --noinput" in compose

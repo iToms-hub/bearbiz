@@ -98,8 +98,8 @@ secret entries):
 ```text
 SECRET_KEY                  replace-with-a-long-random-value
 POSTGRES_PASSWORD           replace-with-a-strong-password
-ALLOWED_HOSTS               localhost,127.0.0.1,192.168.0.39
-DJANGO_ALLOWED_HOSTS        localhost,127.0.0.1,192.168.0.39
+ALLOWED_HOSTS               localhost,127.0.0.1,LXC_HOST_IP
+DJANGO_ALLOWED_HOSTS        localhost,127.0.0.1,LXC_HOST_IP
 DEBUG                       0
 POSTGRES_DB                 bearbiz
 POSTGRES_USER               bearbiz
