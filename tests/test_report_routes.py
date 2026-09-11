@@ -1656,18 +1656,25 @@ def test_report_pdf_action_is_the_only_export_for_all_report_types_and_preserves
 @pytest.mark.django_db()
 def test_report_pdf_uses_compact_layout_and_fits_current_report_on_one_page(client: Client) -> None:
     pdf_template = Path("templates/reports/report_pdf.html").read_text()
-    assert "@page { size: Letter portrait; margin: 0.6cm; }" in pdf_template
+    assert "size: Letter portrait;" in pdf_template
+    assert 'content: "BEARbiZ 2026"' in pdf_template
+    assert 'content: "Page " counter(page) " of " counter(pages)' in pdf_template
+    assert "report_pdf_logo_url" in pdf_template
     assert "font-size: 7pt;" in pdf_template
     assert "padding: 0.06cm 0.08cm;" in pdf_template
     assert "th, td {" in pdf_template
     assert "text-align: center;" in pdf_template
-    pdfplumber = pytest.importorskip("pdfplumber")
+    fitz = pytest.importorskip("fitz")
     response = client.get(reverse("reports:report-pdf", kwargs={"number": 1}), data={"date_filter": "last_week"})
 
     assert response.status_code == 200
-    with pdfplumber.open(io.BytesIO(response.content)) as document:
-        assert len(document.pages) == 1
-        assert document.pages[0].height > document.pages[0].width
+    document = fitz.open(stream=response.content, filetype="pdf")
+    assert document.page_count == 1
+    assert (document[0].rect.width, document[0].rect.height) == (612, 792)
+    pdf_text = document[0].get_text()
+    assert "BEARbiZ 2026" in pdf_text
+    assert "Page 1 of 1" in pdf_text
+    assert document[0].get_images(full=True)
 
 
 @pytest.mark.django_db()

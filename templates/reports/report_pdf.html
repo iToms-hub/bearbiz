@@ -1,15 +1,24 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <title>{{ report_pdf_title }}</title>
     <style>
-      @page { size: Letter portrait; margin: 0.6cm; }
+      @page {
+        size: Letter portrait;
+        margin: 0.55in 0.35in 0.6in;
+        @bottom-left { content: "BEARbiZ 2026"; color: #555; font-size: 8pt; }
+        @bottom-right { content: "Page " counter(page) " of " counter(pages); color: #555; font-size: 8pt; }
+      }
       body { font-family: sans-serif; color: #111; font-size: 10pt; }
       h1 { font-size: 18pt; margin: 0 0 0.2cm; }
       h2 { font-size: 13pt; margin: 0 0 0.15cm; }
       p { margin: 0 0 0.35cm; color: #444; }
       .context { border-bottom: 1px solid #999; margin-bottom: 0.5cm; padding-bottom: 0.25cm; }
+      .title-row { display: table; width: 100%; table-layout: fixed; }
+      .title-row h1 { display: table-cell; width: 78%; vertical-align: middle; }
+      .title-row img { display: table-cell; width: 1.35in; height: auto; max-height: 0.32in; object-fit: contain; object-position: right center; margin-left: auto; }
       table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 7pt; }
       th, td { border: 1px solid #999; padding: 0.06cm 0.08cm; text-align: center; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
       th { background: #eee; }
@@ -28,7 +37,10 @@
   </head>
   <body>
     <div class="context">
-      <h1>{{ report_pdf_title }}</h1>
+      <div class="title-row">
+        <h1>{{ report_pdf_title }}</h1>
+        <img src="{{ report_pdf_logo_url }}" alt="BEARbiz">
+      </div>
       <h2>{{ report_view_title }}</h2>
       <p>{{ report_view_note }} · Filter: {{ report_date_mode|title }} · Showing {{ report_filtered_count }} of {{ report_total_count }} weeks.</p>
     </div>
