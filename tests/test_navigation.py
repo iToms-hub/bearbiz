@@ -100,3 +100,26 @@ def test_sidebar_branding_uses_static_logo_and_hides_it_when_collapsed() -> None
     template = base_template.read_text()
     assert ".app-shell[data-sidebar-collapsed=\"true\"] .sidebar .sidebar-logo" in template
     assert (base_template.parents[1] / "static" / "images" / "bearbiz-banner.png").is_file()
+
+
+@pytest.mark.django_db()
+def test_sidebar_toggle_follows_agent_and_lower_items_stay_ordered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    set_remote_version(monkeypatch, b"1.0.0")
+    client = Client()
+    response = client.get(reverse("dashboard"))
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert "<strong>Bearbiz</strong>" not in html
+    assert html.index('class="sidebar-primary"') < html.index('>🤖</span>')
+    assert html.index('>🤖</span>') < html.index('data-sidebar-toggle')
+    assert html.index('data-sidebar-toggle') < html.index("Update available")
+    assert html.index("Update available") < html.index("Settings")
+
+    base_template = Path(navigation.__file__).parents[2] / "templates" / "base.html"
+    template = base_template.read_text()
+    assert ".sidebar-lower" in template
+    assert "justify-content: center" in template
+    assert "gap: 0;" in template

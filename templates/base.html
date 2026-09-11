@@ -53,12 +53,7 @@
         gap: 1rem;
         overflow: hidden;
       }
-      .sidebar-header {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        min-height: 2.5rem;
-      }
+
       .sidebar-logo {
         display: block;
         width: 100%;
@@ -81,19 +76,21 @@
         flex: none;
         cursor: pointer;
       }
-      .brand {
-        display: flex;
-        flex-direction: column;
-        gap: 0.1rem;
-        min-width: 0;
-      }
-      .brand strong { font-size: 1rem; }
-      .brand span, .muted { color: var(--text-muted); }
+      .muted { color: var(--text-muted); }
       .sidebar nav {
         display: flex;
         flex-direction: column;
         gap: 0.45rem;
         flex: 1;
+      }
+      .sidebar-primary,
+      .sidebar-lower {
+        display: grid;
+        gap: 0.45rem;
+      }
+      .sidebar-lower {
+        margin-top: auto;
+        padding-top: 2rem;
       }
       .sidebar-item {
         display: grid;
@@ -125,6 +122,11 @@
         padding-top: 0.45rem;
         padding-bottom: 0.45rem;
       }
+      .sidebar-toggle-row {
+        display: flex;
+        justify-content: flex-start;
+        padding-top: 0.25rem;
+      }
       .sidebar-subnav {
         display: grid;
         gap: 0.3rem;
@@ -140,9 +142,18 @@
       }
       .app-shell[data-sidebar-collapsed="true"] .sidebar .label,
       .app-shell[data-sidebar-collapsed="true"] .sidebar .section-copy,
-      .app-shell[data-sidebar-collapsed="true"] .sidebar .brand span,
       .app-shell[data-sidebar-collapsed="true"] .sidebar .sidebar-logo {
         display: none;
+      }
+      .app-shell[data-sidebar-collapsed="true"] .sidebar a,
+      .app-shell[data-sidebar-collapsed="true"] .sidebar .sidebar-link {
+        justify-content: center;
+        gap: 0;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      .app-shell[data-sidebar-collapsed="true"] .sidebar-toggle-row {
+        justify-content: center;
       }
       .app-shell[data-sidebar-collapsed="true"] .sidebar-subnav {
         display: none;
@@ -743,32 +754,41 @@
     <div class="app-shell" data-sidebar-collapsed="false">
       <aside class="sidebar" aria-label="Site navigation">
         <img class="sidebar-logo" src="{% static 'images/bearbiz-banner.png' %}" alt="Bearbiz logo">
-        <div class="sidebar-header">
-          <button class="sidebar-toggle" type="button" aria-label="Collapse navigation" aria-pressed="false" data-sidebar-toggle>☰</button>
-          <div class="brand">
-            <strong>Bearbiz</strong>
-          </div>
-        </div>
         <nav>
-          {% for item in left_nav %}
-            <div class="sidebar-item{% if item.css_class %} {{ item.css_class }}{% endif %}">
-              <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}"{% if item.title %} title="{{ item.title }}"{% endif %}>
-                <span aria-hidden="true">{% if item.icon %}{{ item.icon }}{% elif item.label == 'Dashboard' %}🏠{% elif item.label == 'Performance' %}📈{% elif item.label == 'Uploads' %}📥{% elif item.label == 'Reports' %}📄{% elif item.label == 'Agent' %}🤖{% else %}⚙️{% endif %}</span>
-                <span class="label">{{ item.label }}</span>
-              </a>
-              {% if item.children %}
-                <div class="sidebar-subnav" aria-label="{{ item.label }} tabs">
-                  {% for tab in item.children %}
-                    {% if tab.active %}
-                      <span class="tab active" aria-current="page">{{ tab.label }}</span>
-                    {% else %}
-                      <a class="tab" href="{{ tab.url }}">{{ tab.label }}</a>
-                    {% endif %}
-                  {% endfor %}
+          <div class="sidebar-primary">
+            {% for item in left_nav %}
+              {% if not item.css_class %}
+                <div class="sidebar-item">
+                  <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}" aria-label="{{ item.label }}" title="{{ item.title|default:item.label }}">
+                    <span aria-hidden="true">{% if item.icon %}{{ item.icon }}{% elif item.label == 'Dashboard' %}🏠{% elif item.label == 'Performance' %}📈{% elif item.label == 'Uploads' %}📥{% elif item.label == 'Reports' %}📄{% elif item.label == 'Agent' %}🤖{% else %}⚙️{% endif %}</span>
+                    <span class="label">{{ item.label }}</span>
+                  </a>
+                  {% if item.children %}
+                    <div class="sidebar-subnav" aria-label="{{ item.label }} tabs">
+                      {% for tab in item.children %}
+                        {% if tab.active %}<span class="tab active" aria-current="page">{{ tab.label }}</span>{% else %}<a class="tab" href="{{ tab.url }}">{{ tab.label }}</a>{% endif %}
+                      {% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
               {% endif %}
-            </div>
-          {% endfor %}
+            {% endfor %}
+          </div>
+          <div class="sidebar-toggle-row">
+            <button class="sidebar-toggle" type="button" aria-label="Collapse navigation" aria-pressed="false" data-sidebar-toggle>☰</button>
+          </div>
+          <div class="sidebar-lower">
+            {% for item in left_nav %}
+              {% if item.css_class %}
+                <div class="sidebar-item {{ item.css_class }}">
+                  <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}" aria-label="{{ item.label }}" title="{{ item.title|default:item.label }}">
+                    <span aria-hidden="true">{% if item.icon %}{{ item.icon }}{% else %}⚙️{% endif %}</span>
+                    <span class="label">{{ item.label }}</span>
+                  </a>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
         </nav>
       </aside>
       <main>
@@ -824,6 +844,7 @@
           const apply = (collapsed) => {
             shell.dataset.sidebarCollapsed = collapsed ? 'true' : 'false';
             button.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+            button.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
             try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch (error) {}
           };
           try {
