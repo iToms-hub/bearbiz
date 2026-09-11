@@ -1660,13 +1660,13 @@ def test_report_pdf_uses_compact_layout_and_fits_current_report_on_one_page(clie
     assert "position: fixed;" in pdf_template
     assert "class=\"pdf-footer\"" in pdf_template
     assert "class=\"pdf-footer-table\"" in pdf_template
-    assert 'alt="BEARbiZ compact logo"' in pdf_template
+    assert 'alt="BEARbiZ banner logo"' in pdf_template
     assert "© BEARbiZ 2026" in pdf_template
     assert "For internal use only" in pdf_template
     assert "Page {{ page_number }} of {{ page_count }}" not in pdf_template
     assert "report_pdf_logo_url" in pdf_template
     assert ".pdf-footer-table td { width: 33.333%;" in pdf_template
-    assert '<img src="{{ report_pdf_logo_url }}" alt="BEARbiZ compact logo"' in pdf_template
+    assert '<img src="{{ report_pdf_logo_url }}" alt="BEARbiZ banner logo"' in pdf_template
     assert "font-size: 7pt;" in pdf_template
     assert "padding: 0.06cm 0.08cm;" in pdf_template
     assert "th, td {" in pdf_template
@@ -1682,8 +1682,10 @@ def test_report_pdf_uses_compact_layout_and_fits_current_report_on_one_page(clie
     assert "© BEARbiZ 2026" in pdf_text
     assert "For internal use only" in pdf_text
     assert "Page 1 of 1" in pdf_text
-    assert document[0].get_images(full=True)
-    assert "BEARbiZ compact logo" not in pdf_text
+    footer_images = document[0].get_images(full=True)
+    assert footer_images
+    assert any(width / height == pytest.approx(1559 / 941, rel=0.02) for _, _, width, height, *_ in footer_images)
+    assert "BEARbiZ banner logo" not in pdf_text
 
 
 @pytest.mark.django_db()

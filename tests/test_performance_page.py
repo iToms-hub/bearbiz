@@ -342,12 +342,12 @@ def test_performance_pdf_preserves_selection_and_is_portrait(client: Client, tmp
     assert "position: fixed;" in template_text
     assert "class=\"pdf-footer\"" in template_text
     assert "class=\"pdf-footer-table\"" in template_text
-    assert 'alt="BEARbiZ compact logo"' in template_text
+    assert 'alt="BEARbiZ banner logo"' in template_text
     assert "© BEARbiZ 2026" in template_text
     assert "For internal use only" in template_text
     assert "report_pdf_logo_url" in template_text
     assert ".pdf-footer-table td { width: 33.333%;" in template_text
-    assert '<img src="{{ report_pdf_logo_url }}" alt="BEARbiZ compact logo"' in template_text
+    assert '<img src="{{ report_pdf_logo_url }}" alt="BEARbiZ banner logo"' in template_text
 
     fitz = pytest.importorskip("fitz")
     document = fitz.open(stream=response.content, filetype="pdf")
@@ -364,5 +364,7 @@ def test_performance_pdf_preserves_selection_and_is_portrait(client: Client, tmp
     assert "© BEARbiZ 2026" in pdf_text
     assert "For internal use only" in pdf_text
     assert "Page 1 of 1" in pdf_text
-    assert all(page.get_images(full=True) for page in document)
-    assert "BEARbiZ compact logo" not in pdf_text
+    page_images = [page.get_images(full=True) for page in document]
+    assert all(page_images)
+    assert any(width / height == pytest.approx(1559 / 941, rel=0.02) for images in page_images for _, _, width, height, *_ in images)
+    assert "BEARbiZ banner logo" not in pdf_text

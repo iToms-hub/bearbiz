@@ -22,7 +22,7 @@
       .pdf-footer-left { text-align: left; }
       .pdf-footer-center { text-align: center; }
       .pdf-footer-right { text-align: right; }
-      .pdf-footer img { width: 0.22in; height: 0.22in; vertical-align: middle; margin-right: 0.04in; }
+      .pdf-footer img { width: 0.72in; height: 0.28in; object-fit: contain; vertical-align: middle; margin-right: 0.04in; }
       .pdf-page-counter::before { content: "Page " counter(page) " of " counter(pages); }
       table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 7pt; }
       th, td { border: 1px solid #999; padding: 0.06cm 0.08cm; text-align: center; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
@@ -56,7 +56,7 @@
     {% else %}<p>No report data yet.</p>{% endif %}
     <footer class="pdf-footer">
       <table class="pdf-footer-table"><tr>
-        <td class="pdf-footer-left"><img src="{{ report_pdf_logo_url }}" alt="BEARbiZ compact logo">© BEARbiZ 2026</td>
+        <td class="pdf-footer-left"><img src="{{ report_pdf_logo_url }}" alt="BEARbiZ banner logo">© BEARbiZ 2026</td>
         <td class="pdf-footer-center">For internal use only</td>
         <td class="pdf-footer-right"><span class="pdf-page-counter"></span></td>
       </tr></table>
