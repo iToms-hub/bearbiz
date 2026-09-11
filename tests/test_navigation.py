@@ -85,7 +85,7 @@ def test_sidebar_update_markup_is_accessible_and_collapsed_compatible(
 
 
 @pytest.mark.django_db()
-def test_sidebar_branding_uses_static_logo_and_hides_it_when_collapsed() -> None:
+def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> None:
     client = Client()
 
     response = client.get(reverse("dashboard"))
@@ -94,17 +94,24 @@ def test_sidebar_branding_uses_static_logo_and_hides_it_when_collapsed() -> None
     html = response.content.decode()
     assert 'class="sidebar-logo"' in html
     assert 'src="/static/images/bearbiz-banner.png"' in html
+    assert 'class="sidebar-logo-compact"' in html
+    assert 'src="/static/images/bearbiz-mark.png"' in html
     assert 'alt="Bearbiz logo"' in html
 
     base_template = Path(navigation.__file__).parents[2] / "templates" / "base.html"
     template = base_template.read_text()
+    assert ".sidebar-logo-slot" in template
     assert ".app-shell[data-sidebar-collapsed=\"true\"] .sidebar .sidebar-logo" in template
+    assert ".app-shell[data-sidebar-collapsed=\"true\"] .sidebar .sidebar-logo-compact" in template
     assert "height: 6.4rem;" in template
-    assert "visibility: hidden;" in template
-    assert "display: none;" not in template.split(
+    assert "display: none;" in template.split(
         ".app-shell[data-sidebar-collapsed=\"true\"] .sidebar .sidebar-logo", 1
     )[1].split("}", 1)[0]
-    assert (base_template.parents[1] / "static" / "images" / "bearbiz-banner.png").is_file()
+    static_dir = base_template.parents[1] / "static" / "images"
+    assert (static_dir / "bearbiz-banner.png").is_file()
+    compact_logo = static_dir / "bearbiz-mark.png"
+    assert compact_logo.is_file()
+    assert compact_logo.read_bytes()[25] == 6  # PNG RGBA color type.
 
 
 @pytest.mark.django_db()
