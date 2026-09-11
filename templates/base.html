@@ -88,6 +88,11 @@
         flex: none;
         cursor: pointer;
       }
+      .sidebar-toggle-icon {
+        width: 1.65rem;
+        height: 1.65rem;
+        object-fit: contain;
+      }
       .muted { color: var(--text-muted); }
       .sidebar nav {
         display: flex;
@@ -807,7 +812,7 @@
             {% endfor %}
           </div>
           <div class="sidebar-toggle-row">
-            <button class="sidebar-toggle" type="button" aria-label="Collapse navigation" aria-pressed="false" data-sidebar-toggle>☰</button>
+            <button class="sidebar-toggle" type="button" aria-label="Collapse navigation" aria-pressed="false" data-sidebar-toggle><img class="sidebar-toggle-icon" src="{% static 'images/bearbiz-menu.png' %}" alt="" aria-hidden="true"></button>
           </div>
           <div class="sidebar-lower">
             {% for item in left_nav %}

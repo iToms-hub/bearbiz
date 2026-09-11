@@ -104,6 +104,9 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert 'src="/static/images/bearbiz-reports.png"' in html
     assert 'src="/static/images/bearbiz-agent.png"' in html
     assert 'src="/static/images/bearbiz-settings.png"' in html
+    assert 'src="/static/images/bearbiz-menu.png"' in html
+    assert 'class="sidebar-toggle-icon"' in html
+    assert 'data-sidebar-toggle>☰' not in html
     assert 'alt="Stitched performance chart icon"' in html
     assert 'alt="Stitched reports document icon"' in html
     assert 'alt="Stitched Bearbiz agent headset icon"' in html
@@ -131,8 +134,13 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
         assert icon.is_file()
         assert icon.read_bytes()[25] == 6  # PNG RGBA color type.
         assert icon.stat().st_size < 750_000
+    menu_icon = static_dir / "bearbiz-menu.png"
+    assert menu_icon.is_file()
+    assert menu_icon.read_bytes()[25] == 6  # PNG RGBA color type.
+    assert menu_icon.stat().st_size < 750_000
 
     assert ".sidebar-nav-icon" in template
+    assert ".sidebar-toggle-icon" in template
     assert ".sidebar-dashboard-icon" in template
     assert "width: 1.5rem;" in template
     assert "height: 1.5rem;" in template
