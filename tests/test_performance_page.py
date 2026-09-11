@@ -347,7 +347,8 @@ def test_performance_pdf_preserves_selection_and_is_portrait(client: Client, tmp
     assert "For internal use only" in template_text
     assert "report_pdf_logo_url" in template_text
     assert ".pdf-footer-table td { width: 33.333%;" in template_text
-    assert '<img src="{{ report_pdf_logo_url }}" alt="BEARbiZ banner logo"' in template_text
+    assert '<td class="pdf-footer-left"><img src="{{ report_pdf_logo_url }}" alt="BEARbiZ banner logo"></td>' in template_text
+    assert '<td class="pdf-footer-center">© BEARbiZ 2026 | For internal use only</td>' in template_text
 
     fitz = pytest.importorskip("fitz")
     document = fitz.open(stream=response.content, filetype="pdf")
@@ -363,6 +364,7 @@ def test_performance_pdf_preserves_selection_and_is_portrait(client: Client, tmp
     assert "08/09/26" in pdf_text
     assert "© BEARbiZ 2026" in pdf_text
     assert "For internal use only" in pdf_text
+    assert "© BEARbiZ 2026 | For internal use only" in pdf_text.replace("\n", " ")
     assert "Page 1 of 1" in pdf_text
     page_images = [page.get_images(full=True) for page in document]
     assert all(page_images)
