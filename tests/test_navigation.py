@@ -144,6 +144,7 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert '>🏠</span>' not in html
     assert 'src="/static/images/bearbiz-performance.png"' in html
     assert 'src="/static/images/bearbiz-reports.png"' in html
+    assert 'src="/static/images/bearbiz-parties.png"' in html
     assert 'src="/static/images/bearbiz-agent.png"' in html
     assert 'src="/static/images/bearbiz-settings.png"' in html
     assert 'src="/static/images/bearbiz-menu.png"' in html
@@ -151,6 +152,7 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert 'data-sidebar-toggle>☰' not in html
     assert 'alt="Stitched performance chart icon"' in html
     assert 'alt="Stitched reports document icon"' in html
+    assert 'alt="Stitched party popper icon"' in html
     assert 'alt="Stitched Bearbiz agent headset icon"' in html
     assert 'alt="Stitched settings gear icon"' in html
     base_template = Path(navigation.__file__).parents[2] / "templates" / "base.html"
@@ -171,7 +173,10 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert dashboard_logo.is_file()
     assert dashboard_logo.read_bytes()[25] == 6  # PNG RGBA color type.
     assert dashboard_logo.stat().st_size < 750_000
-    for asset in ("bearbiz-performance.png", "bearbiz-reports.png", "bearbiz-agent.png", "bearbiz-settings.png"):
+    for asset in (
+        "bearbiz-performance.png", "bearbiz-reports.png", "bearbiz-parties.png",
+        "bearbiz-agent.png", "bearbiz-settings.png",
+    ):
         icon = static_dir / asset
         assert icon.is_file()
         assert icon.read_bytes()[25] == 6  # PNG RGBA color type.
