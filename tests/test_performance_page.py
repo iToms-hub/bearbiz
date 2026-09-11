@@ -339,9 +339,12 @@ def test_performance_pdf_preserves_selection_and_is_portrait(client: Client, tmp
     template = Path(__file__).parents[1] / "templates" / "performance" / "associates_pdf.html"
     template_text = template.read_text()
     assert "size: Letter portrait;" in template_text
-    assert 'content: "BEARbiZ 2026"' in template_text
+    assert 'content: "© BEARbiZ 2026"' in template_text
+    assert 'content: "For internal use only"' in template_text
     assert 'content: "Page " counter(page) " of " counter(pages)' in template_text
     assert "report_pdf_logo_url" in template_text
+    assert "width: 1.8in;" in template_text
+    assert "max-height: 0.45in;" in template_text
 
     fitz = pytest.importorskip("fitz")
     document = fitz.open(stream=response.content, filetype="pdf")
@@ -355,6 +358,7 @@ def test_performance_pdf_preserves_selection_and_is_portrait(client: Client, tmp
     assert "Avery Bear" in pdf_text
     assert "08/01/26" in pdf_text
     assert "08/09/26" in pdf_text
-    assert "BEARbiZ 2026" in pdf_text
+    assert "© BEARbiZ 2026" in pdf_text
+    assert "For internal use only" in pdf_text
     assert "Page 1 of 1" in pdf_text
     assert all(page.get_images(full=True) for page in document)

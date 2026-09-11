@@ -1657,9 +1657,12 @@ def test_report_pdf_action_is_the_only_export_for_all_report_types_and_preserves
 def test_report_pdf_uses_compact_layout_and_fits_current_report_on_one_page(client: Client) -> None:
     pdf_template = Path("templates/reports/report_pdf.html").read_text()
     assert "size: Letter portrait;" in pdf_template
-    assert 'content: "BEARbiZ 2026"' in pdf_template
+    assert 'content: "© BEARbiZ 2026"' in pdf_template
+    assert 'content: "For internal use only"' in pdf_template
     assert 'content: "Page " counter(page) " of " counter(pages)' in pdf_template
     assert "report_pdf_logo_url" in pdf_template
+    assert "width: 1.8in;" in pdf_template
+    assert "max-height: 0.45in;" in pdf_template
     assert "font-size: 7pt;" in pdf_template
     assert "padding: 0.06cm 0.08cm;" in pdf_template
     assert "th, td {" in pdf_template
@@ -1672,7 +1675,8 @@ def test_report_pdf_uses_compact_layout_and_fits_current_report_on_one_page(clie
     assert document.page_count == 1
     assert (document[0].rect.width, document[0].rect.height) == (612, 792)
     pdf_text = document[0].get_text()
-    assert "BEARbiZ 2026" in pdf_text
+    assert "© BEARbiZ 2026" in pdf_text
+    assert "For internal use only" in pdf_text
     assert "Page 1 of 1" in pdf_text
     assert document[0].get_images(full=True)
 
