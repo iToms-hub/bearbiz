@@ -108,6 +108,13 @@
       .sidebar .nav-bottom {
         margin-top: auto;
       }
+      .sidebar .nav-update a {
+        color: var(--accent);
+        font-size: 0.88rem;
+        font-weight: 700;
+        padding-top: 0.45rem;
+        padding-bottom: 0.45rem;
+      }
       .sidebar-subnav {
         display: grid;
         gap: 0.3rem;
@@ -733,8 +740,8 @@
         <nav>
           {% for item in left_nav %}
             <div class="sidebar-item{% if item.css_class %} {{ item.css_class }}{% endif %}">
-              <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">
-                <span aria-hidden="true">{% if item.label == 'Dashboard' %}🏠{% elif item.label == 'Performance' %}📈{% elif item.label == 'Uploads' %}📥{% elif item.label == 'Reports' %}📄{% elif item.label == 'Agent' %}🤖{% else %}⚙️{% endif %}</span>
+              <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}"{% if item.title %} title="{{ item.title }}"{% endif %}>
+                <span aria-hidden="true">{% if item.icon %}{{ item.icon }}{% elif item.label == 'Dashboard' %}🏠{% elif item.label == 'Performance' %}📈{% elif item.label == 'Uploads' %}📥{% elif item.label == 'Reports' %}📄{% elif item.label == 'Agent' %}🤖{% else %}⚙️{% endif %}</span>
                 <span class="label">{{ item.label }}</span>
               </a>
               {% if item.children %}

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import re
+import threading
+import time
+from urllib import error as url_error
+from urllib import request as url_request
 from typing import Any
 from urllib.parse import urlencode
 
@@ -10,11 +15,20 @@ from bearbiz import __version__
 
 REPORT_NUMBERS = tuple(range(1, 7))
 APP_VERSION = __version__
+REMOTE_VERSION_URL = "https://raw.githubusercontent.com/iToms-hub/bearbiz/main/VERSION"
+VERSION_CACHE_SECONDS = 15 * 60
+_version_cache: tuple[float, str | None] | None = None
+_version_cache_lock = threading.Lock()
+_SEMVER_PATTERN = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
 
 
 def left_nav(active_section: str, active_number: int | None = None) -> list[dict[str, Any]]:
     reports_active = active_section == "reports"
-    return [
+    items: list[dict[str, Any]] = [
         {
             "label": "Dashboard",
             "url": reverse("dashboard"),
@@ -36,13 +50,99 @@ def left_nav(active_section: str, active_number: int | None = None) -> list[dict
             "url": reverse("agent:index"),
             "active": active_section == "agent",
         },
-        {
+    ]
+    update = update_notification()
+    if update:
+        items.append(update)
+    items.append({
             "label": "Settings",
             "url": reverse("settings:index"),
             "active": active_section == "settings",
             "css_class": "nav-bottom",
-        },
-    ]
+        })
+    return items
+
+
+def update_notification() -> dict[str, Any] | None:
+    remote_version = latest_remote_version()
+    if not remote_version or not _is_newer_version(remote_version, APP_VERSION):
+        return None
+    return {
+        "label": "Update available",
+        "url": "https://github.com/iToms-hub/bearbiz/releases/latest",
+        "active": False,
+        "css_class": "nav-update",
+        "icon": "⬆",
+        "title": f"Update available: Bearbiz {remote_version}",
+    }
+
+
+def latest_remote_version() -> str | None:
+    """Return the cached valid VERSION value, failing closed on any error."""
+    global _version_cache
+    now = time.monotonic()
+    with _version_cache_lock:
+        if _version_cache and now - _version_cache[0] < VERSION_CACHE_SECONDS:
+            return _version_cache[1]
+    version: str | None = None
+    response = None
+    try:
+        response = url_request.urlopen(
+            url_request.Request(REMOTE_VERSION_URL, headers={"User-Agent": "Bearbiz"}),
+            timeout=2,
+        )
+        raw = response.read(128).decode("utf-8").strip()
+        if _parse_version(raw):
+            version = raw
+    except (OSError, UnicodeError, ValueError, url_error.URLError):
+        version = None
+    finally:
+        if response is not None:
+            response.close()
+    with _version_cache_lock:
+        _version_cache = (time.monotonic(), version)
+    return version
+
+
+def clear_version_cache() -> None:
+    """Clear the remote version cache (primarily useful for focused tests)."""
+    global _version_cache
+    with _version_cache_lock:
+        _version_cache = None
+
+
+def _parse_version(value: str) -> tuple[int, int, int, tuple[str, ...]] | None:
+    match = _SEMVER_PATTERN.fullmatch(value)
+    if not match:
+        return None
+    prerelease = tuple(match.group(4).split(".")) if match.group(4) else ()
+    if any(identifier.isdigit() and len(identifier) > 1 and identifier.startswith("0") for identifier in prerelease):
+        return None
+    return (
+        int(match.group(1)), int(match.group(2)), int(match.group(3)),
+        prerelease,
+    )
+
+
+def _is_newer_version(remote: str, installed: str) -> bool:
+    remote_parts = _parse_version(remote)
+    installed_parts = _parse_version(installed)
+    if not remote_parts or not installed_parts:
+        return False
+    if remote_parts[:3] != installed_parts[:3]:
+        return remote_parts[:3] > installed_parts[:3]
+    remote_pre, installed_pre = remote_parts[3], installed_parts[3]
+    if not remote_pre or not installed_pre:
+        return bool(not remote_pre and installed_pre)
+    for remote_id, installed_id in zip(remote_pre, installed_pre):
+        if remote_id == installed_id:
+            continue
+        if remote_id.isdigit() and installed_id.isdigit():
+            return int(remote_id) > int(installed_id)
+        if remote_id.isdigit() != installed_id.isdigit():
+            return remote_id.isdigit()
+        return remote_id > installed_id
+    return len(remote_pre) > len(installed_pre)
 
 
 def dashboard_tabs(active: str = "overview") -> list[dict[str, Any]]:
