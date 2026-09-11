@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
   <head>
@@ -57,6 +58,15 @@
         align-items: center;
         gap: 0.75rem;
         min-height: 2.5rem;
+      }
+      .sidebar-logo {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: 6.4rem;
+        object-fit: contain;
+        object-position: center;
+        border-radius: 0.7rem;
       }
       .sidebar-toggle {
         border: 1px solid var(--border-strong);
@@ -130,7 +140,8 @@
       }
       .app-shell[data-sidebar-collapsed="true"] .sidebar .label,
       .app-shell[data-sidebar-collapsed="true"] .sidebar .section-copy,
-      .app-shell[data-sidebar-collapsed="true"] .sidebar .brand span {
+      .app-shell[data-sidebar-collapsed="true"] .sidebar .brand span,
+      .app-shell[data-sidebar-collapsed="true"] .sidebar .sidebar-logo {
         display: none;
       }
       .app-shell[data-sidebar-collapsed="true"] .sidebar-subnav {
@@ -731,6 +742,7 @@
   <body>
     <div class="app-shell" data-sidebar-collapsed="false">
       <aside class="sidebar" aria-label="Site navigation">
+        <img class="sidebar-logo" src="{% static 'images/bearbiz-banner.png' %}" alt="Bearbiz logo">
         <div class="sidebar-header">
           <button class="sidebar-toggle" type="button" aria-label="Collapse navigation" aria-pressed="false" data-sidebar-toggle>☰</button>
           <div class="brand">

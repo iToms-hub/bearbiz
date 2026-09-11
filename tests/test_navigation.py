@@ -82,3 +82,21 @@ def test_sidebar_update_markup_is_accessible_and_collapsed_compatible(
     assert "https://github.com/iToms-hub/bearbiz/releases/latest" in html
     assert html.index("Update available") < html.index("Settings")
     assert ".sidebar .nav-bottom" in (Path(navigation.__file__).parents[2] / "templates" / "base.html").read_text()
+
+
+@pytest.mark.django_db()
+def test_sidebar_branding_uses_static_logo_and_hides_it_when_collapsed() -> None:
+    client = Client()
+
+    response = client.get(reverse("dashboard"))
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert 'class="sidebar-logo"' in html
+    assert 'src="/static/images/bearbiz-banner.png"' in html
+    assert 'alt="Bearbiz logo"' in html
+
+    base_template = Path(navigation.__file__).parents[2] / "templates" / "base.html"
+    template = base_template.read_text()
+    assert ".app-shell[data-sidebar-collapsed=\"true\"] .sidebar .sidebar-logo" in template
+    assert (base_template.parents[1] / "static" / "images" / "bearbiz-banner.png").is_file()
