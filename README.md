@@ -85,35 +85,55 @@ container restart to hide migration failures.
 
 ## Portainer Community Edition deployment
 
-Portainer CE can deploy the tracked `compose.portainer.yml` directly as a
-repository stack. In Portainer, choose **Stacks → Add stack → Git repository**,
-enter the repository URL and branch/tag, and set the compose path to
-`compose.portainer.yml`. Portainer builds from the checked-out repository; the
-host paths below must exist on the Docker host.
+Portainer CE repository deployments do not persist or apply the **Environment
+variables** rows in the stack editor. Do not put deployment values there. The
+tracked `compose.portainer.yml` reads one env file from the Docker host instead,
+with the default absolute path `/opt/bearbiz.env` (not a path inside a
+container). This also prevents Compose from trying to interpolate required
+values such as `ALLOWED_HOSTS` before the container starts.
 
-Set these stack environment variables explicitly (the three marked required
-have no safe production default):
+On the Docker LXC, create the file without putting its contents in Git:
 
-```text
-SECRET_KEY                 required, long random value
-POSTGRES_PASSWORD          required, strong database password
-ALLOWED_HOSTS              required, comma-separated DNS names/IPs
-WEB_PORT                   optional, default 8002
-POSTGRES_DB                optional, default bearbiz
-POSTGRES_USER              optional, default bearbiz
-MEDIA_ROOT                 optional, default /opt/bearbiz/media
-BACKUP_ROOT                optional, default /opt/bearbiz/backups
-BACKUP_OWNER_UID           optional, default 1000
-BACKUP_OWNER_GID           optional, default 1000
-DEBUG                      optional, default 0
-DJANGO_ALLOWED_HOSTS       optional, defaults to ALLOWED_HOSTS
+```bash
+sudo install -o root -g root -m 600 /dev/null /opt/bearbiz.env
+sudoedit /opt/bearbiz.env
+sudo chmod 600 /opt/bearbiz.env
 ```
 
-On an LXC host, replace `/opt/bearbiz` with an absolute path on the Docker
-host (not a path inside the container). If the host is reached through an LXC
-or reverse-proxy address, use the host IP placeholder `LXC_HOST_IP` while
-planning, then replace it with the real address in `ALLOWED_HOSTS` and any
-reverse-proxy upstream configuration.
+The file must contain these entries (use real private values on the host):
+
+```text
+SECRET_KEY=replace-with-a-long-random-value
+POSTGRES_PASSWORD=replace-with-a-strong-password
+ALLOWED_HOSTS=localhost,127.0.0.1,LXC_HOST_IP
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,LXC_HOST_IP
+DEBUG=0
+POSTGRES_DB=bearbiz
+POSTGRES_USER=bearbiz
+BACKUP_OWNER_UID=1000
+BACKUP_OWNER_GID=1000
+```
+
+`POSTGRES_HOST` is deliberately set to the internal Compose service name `db`
+by the stack. The stack also uses stable Docker-host paths
+`/opt/bearbiz/media` and `/opt/bearbiz/backups`, and always publishes
+`8002:8000`. The checked-in default is intentionally `/opt/bearbiz.env`; if a
+different absolute host path is required, change `BEARBIZ_ENV_FILE` in the
+repository deployment configuration before deploying. The stack editor's UI
+environment rows are not a substitute for this host file.
+
+In Portainer choose **Stacks → Add stack → Git repository** and fill in:
+
+```text
+Repository URL:       your Bearbiz Git repository URL
+Repository reference: main (or the release tag to deploy)
+Compose path:         compose.portainer.yml
+```
+
+Leave the stack **Environment variables** table empty. On an LXC host, these
+paths are on the Docker host. If the host is reached through an LXC or
+reverse-proxy address, replace `LXC_HOST_IP` in the env file with the real
+address and configure the reverse-proxy upstream accordingly.
 
 Before first deploy, create and permission the persistent directories on the
 Docker host. Match ownership to the container application user as appropriate:
