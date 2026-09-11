@@ -99,6 +99,11 @@ def test_sidebar_branding_uses_static_logo_and_hides_it_when_collapsed() -> None
     base_template = Path(navigation.__file__).parents[2] / "templates" / "base.html"
     template = base_template.read_text()
     assert ".app-shell[data-sidebar-collapsed=\"true\"] .sidebar .sidebar-logo" in template
+    assert "height: 6.4rem;" in template
+    assert "visibility: hidden;" in template
+    assert "display: none;" not in template.split(
+        ".app-shell[data-sidebar-collapsed=\"true\"] .sidebar .sidebar-logo", 1
+    )[1].split("}", 1)[0]
     assert (base_template.parents[1] / "static" / "images" / "bearbiz-banner.png").is_file()
 
 

@@ -57,8 +57,7 @@
       .sidebar-logo {
         display: block;
         width: 100%;
-        height: auto;
-        max-height: 6.4rem;
+        height: 6.4rem;
         object-fit: contain;
         object-position: center;
         border-radius: 0.7rem;
@@ -141,9 +140,11 @@
         font-size: 0.9rem;
       }
       .app-shell[data-sidebar-collapsed="true"] .sidebar .label,
-      .app-shell[data-sidebar-collapsed="true"] .sidebar .section-copy,
-      .app-shell[data-sidebar-collapsed="true"] .sidebar .sidebar-logo {
+      .app-shell[data-sidebar-collapsed="true"] .sidebar .section-copy {
         display: none;
+      }
+      .app-shell[data-sidebar-collapsed="true"] .sidebar .sidebar-logo {
+        visibility: hidden;
       }
       .app-shell[data-sidebar-collapsed="true"] .sidebar a,
       .app-shell[data-sidebar-collapsed="true"] .sidebar .sidebar-link {
