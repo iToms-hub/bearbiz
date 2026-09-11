@@ -83,6 +83,52 @@ assets from a separate web server. Apply migrations as a deliberate release
 operation, with a verified database backup first; do not rely on a web
 container restart to hide migration failures.
 
+## Portainer Community Edition deployment
+
+Portainer CE can deploy the tracked `compose.portainer.yml` directly as a
+repository stack. In Portainer, choose **Stacks → Add stack → Git repository**,
+enter the repository URL and branch/tag, and set the compose path to
+`compose.portainer.yml`. Portainer builds from the checked-out repository; the
+host paths below must exist on the Docker host.
+
+Set these stack environment variables explicitly (the three marked required
+have no safe production default):
+
+```text
+SECRET_KEY                 required, long random value
+POSTGRES_PASSWORD          required, strong database password
+ALLOWED_HOSTS              required, comma-separated DNS names/IPs
+WEB_PORT                   optional, default 8002
+POSTGRES_DB                optional, default bearbiz
+POSTGRES_USER              optional, default bearbiz
+MEDIA_ROOT                 optional, default /opt/bearbiz/media
+BACKUP_ROOT                optional, default /opt/bearbiz/backups
+BACKUP_OWNER_UID           optional, default 1000
+BACKUP_OWNER_GID           optional, default 1000
+DEBUG                      optional, default 0
+DJANGO_ALLOWED_HOSTS       optional, defaults to ALLOWED_HOSTS
+```
+
+On an LXC host, replace `/opt/bearbiz` with an absolute path on the Docker
+host (not a path inside the container). If the host is reached through an LXC
+or reverse-proxy address, use the host IP placeholder `LXC_HOST_IP` while
+planning, then replace it with the real address in `ALLOWED_HOSTS` and any
+reverse-proxy upstream configuration.
+
+Before first deploy, create and permission the persistent directories on the
+Docker host. Match ownership to the container application user as appropriate:
+
+```bash
+sudo mkdir -p /opt/bearbiz/media /opt/bearbiz/backups
+sudo chown -R 1000:1000 /opt/bearbiz/media /opt/bearbiz/backups
+```
+
+The PostgreSQL named volume `bearbiz_postgres`, the media bind mount, and the
+backup bind mount are persistent. Keep them when updating the repository; never
+run `docker compose -f compose.portainer.yml down -v` during an upgrade. Deploy
+a new tag, verify the backup, then let the web container apply migrations before
+checking `/health/`. Copy backups to separate durable storage and test restores.
+
 ## What Bearbiz does
 
 - Upload one fixed-structure report at a time

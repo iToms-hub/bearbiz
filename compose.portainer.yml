@@ -1,0 +1,60 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: bearbiz.settings
+      DEBUG: ${DEBUG:-0}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the Portainer stack environment}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in the Portainer stack environment}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-${ALLOWED_HOSTS}}
+      POSTGRES_DB: ${POSTGRES_DB:-bearbiz}
+      POSTGRES_USER: ${POSTGRES_USER:-bearbiz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the Portainer stack environment}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-bearbiz}
+      PGUSER: ${POSTGRES_USER:-bearbiz}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_ROOT: /backups/bearbiz
+      BACKUP_LOCK_FILE: /backups/bearbiz/backup.lock
+      BACKUP_EXECUTION_MODE: direct
+      BACKUP_OWNER_UID: ${BACKUP_OWNER_UID:-1000}
+      BACKUP_OWNER_GID: ${BACKUP_OWNER_GID:-1000}
+    volumes:
+      - ${MEDIA_ROOT:-/opt/bearbiz/media}:/app/media
+      - ${BACKUP_ROOT:-/opt/bearbiz/backups}:/backups/bearbiz
+    ports:
+      - "${WEB_PORT:-8002}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8000/health/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bearbiz}
+      POSTGRES_USER: ${POSTGRES_USER:-bearbiz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the Portainer stack environment}
+    volumes:
+      - bearbiz_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  bearbiz_postgres:
