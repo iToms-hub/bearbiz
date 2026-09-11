@@ -3,7 +3,7 @@
 Bearbiz is a BI platform for weekly report uploads, PDF extraction, dashboards,
 and printable/exportable sales reporting.
 
-Current version: 0.9.0
+Current version: 0.9.5
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ before opening the UI:
 
 ```bash
 curl --fail http://localhost:8002/health/
-# Expected shape: {"status":"ok","version":"0.9.0"}
+# Expected shape: {"status":"ok","version":"0.9.5"}
 ```
 
 Open `http://localhost:8002/admin/` for the admin site. The Compose web
