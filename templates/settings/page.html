@@ -155,8 +155,10 @@
     {% endif %}
   {% elif section_slug == 'backup' %}
     <section class="panel backup-status">
-      <div class="backup-heading"><div><h3>Backup control center</h3><p class="muted">Nightly full database + media backups are managed by the host scheduler.</p></div><span class="status-badge {{ backup.status }}">{{ backup.status|title }}</span></div>
+      <div class="backup-heading"><div><h3>Backup control center</h3><p class="muted">Backups run manually unless an external host scheduler is configured.</p></div><span class="status-badge {{ backup.status }}">{{ backup.status|title }}</span></div>
       {% if backup_message %}<p class="{% if backup_message_ok %}success{% else %}error{% endif %}" role="status">{{ backup_message }}</p>{% endif %}
+      {% if backup.storage_warning %}<p class="error" role="alert">{{ backup.storage_warning }}</p>{% endif %}
+      <p class="muted" role="status">{{ backup.status_message }}</p>
       <div class="backup-actions"><form method="post" action="{% url 'settings:backup-action' %}">{% csrf_token %}<input type="hidden" name="action" value="run"><button type="submit">Run backup now</button></form><form method="post" action="{% url 'settings:backup-action' %}">{% csrf_token %}<input type="hidden" name="action" value="verify"><button type="submit">Verify latest backup</button></form></div>
       <dl class="backup-facts"><div><dt>Restore points</dt><dd>{{ backup.count }}</dd></div><div><dt>Storage path</dt><dd><code>{{ backup.storage_path }}</code></dd></div><div><dt>Schedule</dt><dd>{{ backup.schedule }}</dd></div><div><dt>Retention</dt><dd>{{ backup.retention }} newest sets</dd></div><div><dt>Last attempted</dt><dd>{{ backup.last_attempted }}</dd></div><div><dt>Last failed</dt><dd>{{ backup.last_failed }}</dd></div>{% if backup.latest %}<div><dt>Latest successful</dt><dd>{{ backup.latest.timestamp }} · {{ backup.latest.id }}</dd></div><div><dt>Database / media size</dt><dd>{{ backup.latest.database_size_display }} / {{ backup.latest.media_size_display }}</dd></div><div><dt>Checksum / verification</dt><dd>{{ backup.latest.verified }}</dd></div>{% else %}<div><dt>Latest backup</dt><dd>No backups found.</dd></div>{% endif %}{% if backup.failure_reason %}<div><dt>Failure reason</dt><dd>{{ backup.failure_reason }}</dd></div>{% endif %}</dl>
     </section>

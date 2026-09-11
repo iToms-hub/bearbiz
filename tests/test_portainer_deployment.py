@@ -7,7 +7,7 @@ ROOT = Path(__file__).parents[1]
 def test_portainer_stack_uses_portable_image_and_persistent_volumes() -> None:
     compose = (ROOT / "compose.portainer.yml").read_text()
 
-    assert 'image: "ghcr.io/itoms-hub/bearbiz:${BEARBIZ_IMAGE_TAG:-0.9.7}"' in compose
+    assert 'image: "ghcr.io/itoms-hub/bearbiz:${BEARBIZ_IMAGE_TAG:-0.9.8}"' in compose
     assert "build:" not in compose
     assert "- .:/app" not in compose
     assert "SECRET_KEY: \"${SECRET_KEY:?" in compose
@@ -16,6 +16,7 @@ def test_portainer_stack_uses_portable_image_and_persistent_volumes() -> None:
     assert "/opt/bearbiz/" not in compose
     assert '"8002:8000"' in compose
     assert "ALLOWED_HOSTS: \"${ALLOWED_HOSTS:?" in compose
+    assert "CSRF_TRUSTED_ORIGINS: \"${CSRF_TRUSTED_ORIGINS:?Set CSRF_TRUSTED_ORIGINS in the Portainer stack environment}\"" in compose
     assert "POSTGRES_PASSWORD: \"${POSTGRES_PASSWORD:?" in compose
     assert "env_file:" not in compose
     assert "BEARBIZ_ENV_FILE" not in compose
@@ -58,6 +59,7 @@ def test_portainer_instructions_use_ui_variables() -> None:
         "POSTGRES_PASSWORD",
         "ALLOWED_HOSTS",
         "DJANGO_ALLOWED_HOSTS",
+        "CSRF_TRUSTED_ORIGINS",
         "DEBUG",
         "POSTGRES_DB",
         "POSTGRES_USER",
@@ -67,7 +69,7 @@ def test_portainer_instructions_use_ui_variables() -> None:
         assert variable in readme
 
     reference = (ROOT / "docs/portainer-deployment.md").read_text()
-    assert "ghcr.io/itoms-hub/bearbiz:0.9.7" in reference
+    assert "ghcr.io/itoms-hub/bearbiz:0.9.8" in reference
     assert "stack.env" in reference
     assert "Packages" in reference
 

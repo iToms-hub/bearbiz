@@ -546,7 +546,7 @@ def _post_json(url: str, payload: Mapping[str, Any], *, api_key: str) -> dict[st
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "bearbiz-ai/0.9.7",
+        "User-Agent": "bearbiz-ai/0.9.8",
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -570,7 +570,7 @@ def _post_json(url: str, payload: Mapping[str, Any], *, api_key: str) -> dict[st
 def _get_json(url: str, *, api_key: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
-        "User-Agent": "bearbiz-ai/0.9.7",
+        "User-Agent": "bearbiz-ai/0.9.8",
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"

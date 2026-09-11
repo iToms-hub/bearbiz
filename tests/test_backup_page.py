@@ -19,9 +19,32 @@ def test_backup_settings_page_is_one_page_and_shows_manual_controls(client, tmp_
     assert "Backup control center" in html
     assert "Run backup now" in html
     assert "Verify latest backup" in html
-    assert "Not enabled" in html
+    assert "No backup has been created yet." in html
     assert "Backup history" in html
     assert "Restore" in html
+
+
+def test_named_volume_backup_snapshot_warns_about_local_storage(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("BACKUP_ROOT", str(tmp_path / "backups"))
+    monkeypatch.setenv("BACKUP_STORAGE_MODE", "named-volume")
+
+    snapshot = views.backup_snapshot()
+
+    assert snapshot["schedule"] == "Not configured - run manually."
+    warning = str(snapshot["storage_warning"])
+    assert "not an off-host" not in warning
+    assert "off-host" in warning
+
+
+def test_backup_snapshot_distinguishes_failed_attempt_from_fresh_install(monkeypatch, tmp_path: Path) -> None:
+    root = tmp_path / "backups"
+    root.mkdir()
+    (root / "status.json").write_text('{"state":"failed","failure_reason":"pg_dump failed"}')
+    monkeypatch.setenv("BACKUP_ROOT", str(root))
+
+    snapshot = views.backup_snapshot()
+
+    assert snapshot["status_message"] == "The latest backup attempt failed."
 
 
 def test_backup_history_template_right_aligns_accessible_restore_action() -> None:

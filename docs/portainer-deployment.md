@@ -13,7 +13,7 @@ Create a Portainer stack from the public repository:
 - Compose path: `compose.portainer.yml`
 - Repository authentication: off; TLS verification: on
 
-The stack defaults to `ghcr.io/itoms-hub/bearbiz:0.9.7` and can override it
+The stack defaults to `ghcr.io/itoms-hub/bearbiz:0.9.8` and can override it
 with `BEARBIZ_IMAGE_TAG`. It uses explicit Docker volumes named
 `bearbiz_postgres`, `bearbiz_media`, and `bearbiz_backups`, exposes `8002:8000`,
 waits for the PostgreSQL healthcheck, runs migrations before Gunicorn, and
@@ -30,18 +30,20 @@ SECRET_KEY=<long-random-secret>
 POSTGRES_PASSWORD=<strong-unique-password>
 ALLOWED_HOSTS=localhost,127.0.0.1,<host-or-proxy-name>
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,<host-or-proxy-name>
+CSRF_TRUSTED_ORIGINS=https://bearbiz.itoms.org,https://<host-or-proxy-name>
 DEBUG=0
 POSTGRES_DB=bearbiz
 POSTGRES_USER=bearbiz
 BACKUP_OWNER_UID=1000
 BACKUP_OWNER_GID=1000
-BEARBIZ_IMAGE_TAG=0.9.7
+BEARBIZ_IMAGE_TAG=0.9.8
 GUNICORN_WORKERS=3
 ```
 
 `POSTGRES_HOST=db`, `POSTGRES_PORT=5432`, and the container backup paths are
-set by the compose file. Keep secrets and registry credentials in Portainer,
-not Git.
+set by the compose file. `CSRF_TRUSTED_ORIGINS` must contain explicit full
+origins (including `https://`), not bare hostnames. Keep secrets and registry
+credentials in Portainer, not Git.
 
 ## GHCR visibility and updates
 
@@ -53,9 +55,13 @@ credentials using a read-only package token; never put the token in Compose or
 
 The checked-in workflow publishes with `GITHUB_TOKEN` and no application
 secrets. Pushes to `main` publish `latest` and an immutable SHA tag. version
-tags such as `v0.9.7` publish `0.9.7`, `0.9`, `0`, and a SHA tag. Prefer an
+tags such as `v0.9.8` publish `0.9.8`, `0.9`, `0`, and a SHA tag. Prefer an
 immutable version tag in Portainer; update `BEARBIZ_IMAGE_TAG` only after a
 verified database-plus-media backup. Never use `down -v` during an update.
+
+The stack's `bearbiz_backups` volume is local to the deployment host and is not
+an off-host backup. The stack also has no scheduler; run a verified backup
+manually or configure an external host scheduler/export before relying on it.
 
 ## Verification
 

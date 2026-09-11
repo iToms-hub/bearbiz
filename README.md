@@ -3,7 +3,7 @@
 Bearbiz is a BI platform for weekly report uploads, PDF extraction, dashboards,
 and printable/exportable sales reporting.
 
-Current version: 0.9.7
+Current version: 0.9.8
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ before opening the UI:
 
 ```bash
 curl --fail http://localhost:8002/health/
-# Expected shape: {"status":"ok","version":"0.9.7"}
+# Expected shape: {"status":"ok","version":"0.9.8"}
 ```
 
 Open `http://localhost:8002/admin/` for the admin site. The Compose web
@@ -87,7 +87,7 @@ container restart to hide migration failures.
 ## Portainer Community Edition deployment
 
 The CE stack is a portable image-based deployment. It pulls the pinned
-`ghcr.io/itoms-hub/bearbiz:0.9.7` image by default; it does not build from a
+`ghcr.io/itoms-hub/bearbiz:0.9.8` image by default; it does not build from a
 checkout, use host bind paths, mount the Docker socket, or reference an
 external `env_file`. The web container runs migrations before Gunicorn starts,
 waits for PostgreSQL health, persists data in the explicitly named Docker
@@ -119,14 +119,16 @@ POSTGRES_DB           bearbiz
 POSTGRES_USER         bearbiz
 BACKUP_OWNER_UID      1000
 BACKUP_OWNER_GID      1000
-BEARBIZ_IMAGE_TAG     0.9.7
+BEARBIZ_IMAGE_TAG     0.9.8
 GUNICORN_WORKERS      3
 ```
 
-`BEARBIZ_IMAGE_TAG` is optional; omit it to use `0.9.7`. The stack sets
+`BEARBIZ_IMAGE_TAG` is optional; omit it to use `0.9.8`. The stack sets
 `POSTGRES_HOST=db` and the internal backup paths itself. Add any reverse-proxy
-hostname to both allowed-host variables. Remove blank placeholder rows before
-deploying.
+hostname to both allowed-host variables, and add its full `https://` origin to
+`CSRF_TRUSTED_ORIGINS` explicitly, for example
+`https://bearbiz.itoms.org`. Add any additional public origins as comma-separated
+full URLs. Remove blank placeholder rows before deploying.
 
 GHCR package visibility is separate from GitHub repository visibility. The
 image must be made **public** in the repository's Packages settings for an
@@ -134,11 +136,14 @@ unauthenticated Portainer/Docker pull. If the package remains private, configure
 Portainer's registry credentials for `ghcr.io` with a read-only package token;
 do not put that token in the compose file or Git. The workflow publishes on
 `main` as `latest` plus an immutable SHA tag, and on version tags such as
-`v0.9.7` as `0.9.7` (plus safe semver tags and SHA). Deploy a version tag for
+`v0.9.8` as `0.9.8` (plus safe semver tags and SHA). Deploy a version tag for
 repeatable releases; advance `BEARBIZ_IMAGE_TAG` only after verifying a backup
 and the new image.
 
-The named volumes survive stack updates. Never run `docker compose -f
+The named volumes survive stack updates. The backup volume is local to the
+deployment host, not an off-host disaster-recovery copy; configure a separate
+export or host backup for that. The stack does not configure a scheduler, so
+run the backup tool manually or configure scheduling outside Portainer. Never run `docker compose -f
 compose.portainer.yml down -v` or delete a Portainer volume during a routine
 upgrade. Before updating, verify a database-plus-media backup; redeploy, allow
 migrations to finish, then verify container health and `GET /health/` at

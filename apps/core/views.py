@@ -257,12 +257,23 @@ def backup_snapshot() -> dict[str, object]:
     records.sort(key=lambda item: item["created"], reverse=True)
     latest = records[0] if records else None
     status = _read_backup_status(root / "status.json")
+    schedule = status.get("schedule") or os.environ.get("BACKUP_SCHEDULE") or "Not configured - run manually."
+    if status.get("state") == "failed":
+        status_message = "The latest backup attempt failed."
+    elif latest:
+        status_message = "A verified backup is available."
+    else:
+        status_message = "No backup has been created yet."
+    storage_warning = ""
+    if os.environ.get("BACKUP_STORAGE_MODE") == "named-volume":
+        storage_warning = "Named-volume backups remain on this deployment host; copy them off-host for disaster recovery."
     return {
         "status": "healthy" if latest and latest["verified"] == "verified" and status.get("state") != "failed" else "warning",
         "records": records, "latest": latest, "count": len(records),
         "last_attempted": status.get("last_attempted") or (latest["timestamp"] if latest else "None recorded"),
         "last_failed": status.get("last_failed", "None recorded"), "failure_reason": status.get("failure_reason", ""),
-        "storage_path": str(root), "schedule": status.get("schedule", "Not enabled — backups run only when requested."),
+        "storage_path": str(root), "schedule": schedule, "storage_warning": storage_warning,
+        "status_message": status_message,
         "retention": os.environ.get("RETENTION_COUNT", "7"),
     }
 
