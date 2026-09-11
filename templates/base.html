@@ -115,6 +115,7 @@
         align-items: center;
         justify-content: center;
         flex: none;
+        object-fit: contain;
       }
       .sidebar-dashboard-icon {
         object-fit: contain;
@@ -791,7 +792,7 @@
               {% if not item.css_class %}
                 <div class="sidebar-item">
                   <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}" aria-label="{{ item.label }}" title="{{ item.title|default:item.label }}">
-                    {% if item.label == 'Dashboard' %}<img class="sidebar-nav-icon sidebar-dashboard-icon" src="{% static 'images/bearbiz-dashboard.png' %}" alt="Stitched Bearbiz house dashboard icon">{% else %}<span class="sidebar-nav-icon" aria-hidden="true">{% if item.icon %}{{ item.icon }}{% elif item.label == 'Performance' %}📈{% elif item.label == 'Uploads' %}📥{% elif item.label == 'Reports' %}📄{% elif item.label == 'Agent' %}🤖{% else %}⚙️{% endif %}</span>{% endif %}
+                    {% if item.label == 'Dashboard' %}<img class="sidebar-nav-icon sidebar-dashboard-icon" src="{% static 'images/bearbiz-dashboard.png' %}" alt="Stitched Bearbiz house dashboard icon">{% elif item.label == 'Performance' %}<img class="sidebar-nav-icon" src="{% static 'images/bearbiz-performance.png' %}" alt="Stitched performance chart icon">{% elif item.label == 'Reports' %}<img class="sidebar-nav-icon" src="{% static 'images/bearbiz-reports.png' %}" alt="Stitched reports document icon">{% elif item.label == 'Agent' %}<img class="sidebar-nav-icon" src="{% static 'images/bearbiz-agent.png' %}" alt="Stitched Bearbiz agent headset icon">{% else %}<span class="sidebar-nav-icon" aria-hidden="true">{% if item.icon %}{{ item.icon }}{% elif item.label == 'Uploads' %}📥{% else %}⚙️{% endif %}</span>{% endif %}
                     <span class="label">{{ item.label }}</span>
                   </a>
                   {% if item.children %}
@@ -813,7 +814,7 @@
               {% if item.css_class %}
                 <div class="sidebar-item {{ item.css_class }}">
                   <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}" aria-label="{{ item.label }}" title="{{ item.title|default:item.label }}">
-                    <span aria-hidden="true">{% if item.icon %}{{ item.icon }}{% else %}⚙️{% endif %}</span>
+                    {% if item.label == 'Settings' %}<img class="sidebar-nav-icon" src="{% static 'images/bearbiz-settings.png' %}" alt="Stitched settings gear icon">{% else %}<span class="sidebar-nav-icon" aria-hidden="true">{% if item.icon %}{{ item.icon }}{% else %}⚙️{% endif %}</span>{% endif %}
                     <span class="label">{{ item.label }}</span>
                   </a>
                 </div>

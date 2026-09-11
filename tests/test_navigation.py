@@ -100,7 +100,14 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert 'src="/static/images/bearbiz-dashboard.png"' in html
     assert 'alt="Stitched Bearbiz house dashboard icon"' in html
     assert '>🏠</span>' not in html
-
+    assert 'src="/static/images/bearbiz-performance.png"' in html
+    assert 'src="/static/images/bearbiz-reports.png"' in html
+    assert 'src="/static/images/bearbiz-agent.png"' in html
+    assert 'src="/static/images/bearbiz-settings.png"' in html
+    assert 'alt="Stitched performance chart icon"' in html
+    assert 'alt="Stitched reports document icon"' in html
+    assert 'alt="Stitched Bearbiz agent headset icon"' in html
+    assert 'alt="Stitched settings gear icon"' in html
     base_template = Path(navigation.__file__).parents[2] / "templates" / "base.html"
     template = base_template.read_text()
     assert ".sidebar-logo-slot" in template
@@ -119,6 +126,11 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert dashboard_logo.is_file()
     assert dashboard_logo.read_bytes()[25] == 6  # PNG RGBA color type.
     assert dashboard_logo.stat().st_size < 750_000
+    for asset in ("bearbiz-performance.png", "bearbiz-reports.png", "bearbiz-agent.png", "bearbiz-settings.png"):
+        icon = static_dir / asset
+        assert icon.is_file()
+        assert icon.read_bytes()[25] == 6  # PNG RGBA color type.
+        assert icon.stat().st_size < 750_000
 
     assert ".sidebar-nav-icon" in template
     assert ".sidebar-dashboard-icon" in template
@@ -137,8 +149,8 @@ def test_sidebar_toggle_follows_agent_and_lower_items_stay_ordered(
     assert response.status_code == 200
     html = response.content.decode()
     assert "<strong>Bearbiz</strong>" not in html
-    assert html.index('class="sidebar-primary"') < html.index('>🤖</span>')
-    assert html.index('>🤖</span>') < html.index('data-sidebar-toggle')
+    assert html.index('class="sidebar-primary"') < html.index('bearbiz-agent.png')
+    assert html.index('bearbiz-agent.png') < html.index('data-sidebar-toggle')
     assert html.index('data-sidebar-toggle') < html.index("Update available")
     assert html.index("Update available") < html.index("Settings")
 
