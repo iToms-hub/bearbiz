@@ -4,12 +4,15 @@ services:
       context: .
       dockerfile: Dockerfile
     command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
-    # Portainer CE repository stacks do not apply the UI environment rows.
-    # This is an absolute path on the Docker host (normally the LXC host).
-    env_file:
-      - ${BEARBIZ_ENV_FILE:-/opt/bearbiz.env}
     environment:
+      SECRET_KEY: "${SECRET_KEY:?Set SECRET_KEY in the Portainer stack environment}"
+      DEBUG: "${DEBUG:-0}"
+      ALLOWED_HOSTS: "${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in the Portainer stack environment}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-${ALLOWED_HOSTS}}"
       DJANGO_SETTINGS_MODULE: bearbiz.settings
+      POSTGRES_DB: "${POSTGRES_DB:-bearbiz}"
+      POSTGRES_USER: "${POSTGRES_USER:-bearbiz}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the Portainer stack environment}"
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       PGHOST: db
@@ -18,6 +21,8 @@ services:
       BACKUP_ROOT: /backups/bearbiz
       BACKUP_LOCK_FILE: /backups/bearbiz/backup.lock
       BACKUP_EXECUTION_MODE: direct
+      BACKUP_OWNER_UID: "${BACKUP_OWNER_UID:-1000}"
+      BACKUP_OWNER_GID: "${BACKUP_OWNER_GID:-1000}"
     volumes:
       - /opt/bearbiz/media:/app/media
       - /opt/bearbiz/backups:/backups/bearbiz
@@ -36,9 +41,10 @@ services:
 
   db:
     image: postgres:16
-    # POSTGRES_* credentials come from the host env_file below.
-    env_file:
-      - ${BEARBIZ_ENV_FILE:-/opt/bearbiz.env}
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-bearbiz}"
+      POSTGRES_USER: "${POSTGRES_USER:-bearbiz}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the Portainer stack environment}"
     volumes:
       - bearbiz_postgres:/var/lib/postgresql/data
     healthcheck:

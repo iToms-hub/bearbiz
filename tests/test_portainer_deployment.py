@@ -9,14 +9,13 @@ def test_portainer_stack_builds_immutable_runtime_and_persists_host_data() -> No
 
     assert "context: ." in compose
     assert "- .:/app" not in compose
-    assert "${BEARBIZ_ENV_FILE:-/opt/bearbiz.env}" in compose
+    assert "SECRET_KEY: \"${SECRET_KEY:?" in compose
     assert "/opt/bearbiz/media:/app/media" in compose
     assert "/opt/bearbiz/backups:/backups/bearbiz" in compose
     assert '"8002:8000"' in compose
-    assert "SECRET_KEY: ${" not in compose
-    assert "ALLOWED_HOSTS: ${" not in compose
-    assert "POSTGRES_PASSWORD: ${" not in compose
-    assert "env_file:" in compose
+    assert "ALLOWED_HOSTS: \"${ALLOWED_HOSTS:?" in compose
+    assert "POSTGRES_PASSWORD: \"${POSTGRES_PASSWORD:?" in compose
+    assert "env_file:" not in compose
     assert "POSTGRES_HOST: db" in compose
     assert "condition: service_healthy" in compose
     assert "migrate --noinput" in compose
@@ -24,14 +23,13 @@ def test_portainer_stack_builds_immutable_runtime_and_persists_host_data() -> No
     assert "/var/run/docker.sock" not in compose
 
 
-def test_portainer_instructions_use_host_env_file_not_ui_variables() -> None:
+def test_portainer_instructions_use_ui_variables() -> None:
     readme = (ROOT / "README.md").read_text()
 
-    assert "/opt/bearbiz.env" in readme
-    assert "chmod 600 /opt/bearbiz.env" in readme
     assert "UI" in readme
     assert "environment rows" in readme
-    assert "BEARBIZ_ENV_FILE" in readme
+    assert "Environment" in readme
+    assert "variables" in readme
     for variable in (
         "SECRET_KEY",
         "POSTGRES_PASSWORD",

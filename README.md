@@ -85,42 +85,31 @@ container restart to hide migration failures.
 
 ## Portainer Community Edition deployment
 
-Portainer CE repository deployments do not persist or apply the **Environment
-variables** rows in the stack editor. Do not put deployment values there. The
-tracked `compose.portainer.yml` reads one env file from the Docker host instead,
-with the default absolute path `/opt/bearbiz.env` (not a path inside a
-container). This also prevents Compose from trying to interpolate required
-values such as `ALLOWED_HOSTS` before the container starts.
+Portainer CE repository deployments receive Compose interpolation values from
+the stack editor's **Environment variables** table. The tracked
+`compose.portainer.yml` declares the required settings explicitly, including
+`ALLOWED_HOSTS`, `SECRET_KEY`, and `POSTGRES_PASSWORD`. Do not use an external
+`env_file` path: Portainer's Compose process may not be able to see files on the
+Docker LXC host filesystem.
 
-On the Docker LXC, create the file without putting its contents in Git:
-
-```bash
-sudo install -o root -g root -m 600 /dev/null /opt/bearbiz.env
-sudoedit /opt/bearbiz.env
-sudo chmod 600 /opt/bearbiz.env
-```
-
-The file must contain these entries (use real private values on the host):
+In Portainer, add these environment rows (use real private values for the two
+secret entries):
 
 ```text
-SECRET_KEY=replace-with-a-long-random-value
-POSTGRES_PASSWORD=replace-with-a-strong-password
-ALLOWED_HOSTS=localhost,127.0.0.1,LXC_HOST_IP
-DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,LXC_HOST_IP
-DEBUG=0
-POSTGRES_DB=bearbiz
-POSTGRES_USER=bearbiz
-BACKUP_OWNER_UID=1000
-BACKUP_OWNER_GID=1000
+SECRET_KEY                  replace-with-a-long-random-value
+POSTGRES_PASSWORD           replace-with-a-strong-password
+ALLOWED_HOSTS               localhost,127.0.0.1,192.168.0.39
+DJANGO_ALLOWED_HOSTS        localhost,127.0.0.1,192.168.0.39
+DEBUG                       0
+POSTGRES_DB                 bearbiz
+POSTGRES_USER               bearbiz
+BACKUP_OWNER_UID            1000
+BACKUP_OWNER_GID            1000
 ```
 
 `POSTGRES_HOST` is deliberately set to the internal Compose service name `db`
-by the stack. The stack also uses stable Docker-host paths
-`/opt/bearbiz/media` and `/opt/bearbiz/backups`, and always publishes
-`8002:8000`. The checked-in default is intentionally `/opt/bearbiz.env`; if a
-different absolute host path is required, change `BEARBIZ_ENV_FILE` in the
-repository deployment configuration before deploying. The stack editor's UI
-environment rows are not a substitute for this host file.
+by the stack. The stack uses stable Docker-host paths `/opt/bearbiz/media` and
+`/opt/bearbiz/backups`, and always publishes `8002:8000`.
 
 In Portainer choose **Stacks → Add stack → Git repository** and fill in:
 
@@ -130,10 +119,10 @@ Repository reference: main (or the release tag to deploy)
 Compose path:         compose.portainer.yml
 ```
 
-Leave the stack **Environment variables** table empty. On an LXC host, these
-paths are on the Docker host. If the host is reached through an LXC or
-reverse-proxy address, replace `LXC_HOST_IP` in the env file with the real
-address and configure the reverse-proxy upstream accordingly.
+Keep the stack **Environment variables** table populated with the rows above.
+Remove any blank placeholder row. On an LXC host, the media and backup paths
+are on the Docker host. If the host is reached through a reverse proxy, add
+that hostname to both allowed-host variables and configure the upstream.
 
 Before first deploy, create and permission the persistent directories on the
 Docker host. Match ownership to the container application user as appropriate:
