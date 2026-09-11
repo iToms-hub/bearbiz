@@ -142,6 +142,13 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert ".sidebar-nav-icon" in template
     assert ".sidebar-toggle-icon" in template
     assert ".sidebar-dashboard-icon" in template
+    toggle_css = template.split(".sidebar-toggle {", 1)[1].split("}", 1)[0]
+    assert "border: 0;" in toggle_css
+    assert "border-radius: 0;" in toggle_css
+    assert "background: transparent;" in toggle_css
+    assert "padding: 0;" in toggle_css
+    assert ".sidebar-toggle:hover" in template
+    assert ".sidebar-toggle:focus-visible" in template
     assert "width: 1.5rem;" in template
     assert "height: 1.5rem;" in template
 

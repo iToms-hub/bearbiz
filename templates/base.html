@@ -76,18 +76,21 @@
         object-fit: contain;
       }
       .sidebar-toggle {
-        border: 1px solid var(--border-strong);
-        border-radius: 999px;
-        background: Canvas;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
         color: CanvasText;
         width: 2.25rem;
         height: 2.25rem;
+        padding: 0;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         flex: none;
         cursor: pointer;
       }
+      .sidebar-toggle:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+      .sidebar-toggle:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, Canvas); outline-offset: 2px; }
       .sidebar-toggle-icon {
         width: 1.65rem;
         height: 1.65rem;
