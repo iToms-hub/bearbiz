@@ -114,6 +114,7 @@ SECRET_KEY            <long-random-private-value>
 POSTGRES_PASSWORD     <strong-private-password>
 ALLOWED_HOSTS         localhost,127.0.0.1,<deployment-host>
 DJANGO_ALLOWED_HOSTS  localhost,127.0.0.1,<deployment-host>
+CSRF_TRUSTED_ORIGINS  https://bearbiz.itoms.org
 DEBUG                 0
 POSTGRES_DB           bearbiz
 POSTGRES_USER         bearbiz
