@@ -1,9 +1,7 @@
 services:
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
+    image: "ghcr.io/itoms-hub/bearbiz:${BEARBIZ_IMAGE_TAG:-0.9.5}"
+    command: sh -c "python manage.py migrate --noinput && gunicorn bearbiz.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3}"
     environment:
       SECRET_KEY: "${SECRET_KEY:?Set SECRET_KEY in the Portainer stack environment}"
       DEBUG: "${DEBUG:-0}"
@@ -17,15 +15,14 @@ services:
       POSTGRES_PORT: "5432"
       PGHOST: db
       PGPORT: "5432"
-      # Keep these container paths independent of host env-file values.
       BACKUP_ROOT: /backups/bearbiz
       BACKUP_LOCK_FILE: /backups/bearbiz/backup.lock
       BACKUP_EXECUTION_MODE: direct
       BACKUP_OWNER_UID: "${BACKUP_OWNER_UID:-1000}"
       BACKUP_OWNER_GID: "${BACKUP_OWNER_GID:-1000}"
     volumes:
-      - /opt/bearbiz/media:/app/media
-      - /opt/bearbiz/backups:/backups/bearbiz
+      - bearbiz_media:/app/media
+      - bearbiz_backups:/backups/bearbiz
     ports:
       - "8002:8000"
     depends_on:
@@ -56,3 +53,8 @@ services:
 
 volumes:
   bearbiz_postgres:
+    name: bearbiz_postgres
+  bearbiz_media:
+    name: bearbiz_media
+  bearbiz_backups:
+    name: bearbiz_backups

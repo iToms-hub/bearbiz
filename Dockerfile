@@ -40,8 +40,8 @@ COPY templates /app/templates
 COPY static /app/static
 COPY scripts /app/scripts
 
-# These directories are bind-mounted in deployment, but must exist in the
-# image for first boot and runtime packaging without the source tree.
+# These directories are volume mount points in deployment, but must exist in
+# the image for first boot and runtime packaging without the source tree.
 RUN mkdir -p /app/media/reports /app/staticfiles \
     && chmod +x /app/scripts/*.sh
 

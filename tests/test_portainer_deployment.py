@@ -4,14 +4,16 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 
 
-def test_portainer_stack_builds_immutable_runtime_and_persists_host_data() -> None:
+def test_portainer_stack_uses_portable_image_and_persistent_volumes() -> None:
     compose = (ROOT / "compose.portainer.yml").read_text()
 
-    assert "context: ." in compose
+    assert 'image: "ghcr.io/itoms-hub/bearbiz:${BEARBIZ_IMAGE_TAG:-0.9.5}"' in compose
+    assert "build:" not in compose
     assert "- .:/app" not in compose
     assert "SECRET_KEY: \"${SECRET_KEY:?" in compose
-    assert "/opt/bearbiz/media:/app/media" in compose
-    assert "/opt/bearbiz/backups:/backups/bearbiz" in compose
+    assert "bearbiz_media:/app/media" in compose
+    assert "bearbiz_backups:/backups/bearbiz" in compose
+    assert "/opt/bearbiz/" not in compose
     assert '"8002:8000"' in compose
     assert "ALLOWED_HOSTS: \"${ALLOWED_HOSTS:?" in compose
     assert "POSTGRES_PASSWORD: \"${POSTGRES_PASSWORD:?" in compose
@@ -21,8 +23,27 @@ def test_portainer_stack_builds_immutable_runtime_and_persists_host_data() -> No
     assert "POSTGRES_HOST: db" in compose
     assert "condition: service_healthy" in compose
     assert "migrate --noinput" in compose
+    assert "gunicorn bearbiz.wsgi:application" in compose
     assert "restart: unless-stopped" in compose
     assert "/var/run/docker.sock" not in compose
+    assert "bearbiz_postgres:" in compose
+    assert "bearbiz_media:" in compose
+    assert "bearbiz_backups:" in compose
+    assert "name: bearbiz_postgres" in compose
+    assert "name: bearbiz_media" in compose
+    assert "name: bearbiz_backups" in compose
+
+
+def test_portainer_workflow_publishes_safe_ghcr_tags() -> None:
+    workflow = (ROOT / ".github/workflows/docker-publish.yml").read_text()
+
+    assert "packages: write" in workflow
+    assert "secrets.GITHUB_TOKEN" in workflow
+    assert "type=semver" in workflow
+    assert "type=sha" in workflow
+    assert "type=raw,value=latest,enable={{is_default_branch}}" in workflow
+    assert "password:" in workflow
+    assert "SECRET_KEY" not in workflow
 
 
 def test_portainer_instructions_use_ui_variables() -> None:
@@ -40,8 +61,15 @@ def test_portainer_instructions_use_ui_variables() -> None:
         "DEBUG",
         "POSTGRES_DB",
         "POSTGRES_USER",
+        "BACKUP_OWNER_UID",
+        "BACKUP_OWNER_GID",
     ):
         assert variable in readme
+
+    reference = (ROOT / "docs/portainer-deployment.md").read_text()
+    assert "ghcr.io/itoms-hub/bearbiz:0.9.5" in reference
+    assert "stack.env" in reference
+    assert "Packages" in reference
 
 
 def test_docker_image_copies_runtime_files_not_source_mount() -> None:

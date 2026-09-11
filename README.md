@@ -71,8 +71,8 @@ mount (the default is `/home/tome/backups/bearbiz`).
 The checked-in Compose file is intended for local and small private
 deployments. It bind-mounts the source tree, uses Django's development
 server, supplies development defaults, and exposes PostgreSQL on the internal
-Compose network. For production, build an immutable image from a tagged
-release, do not mount the source tree, set `DEBUG=0` and an explicit host list,
+Compose network. For production, use the published immutable GHCR image from a
+tagged release, do not mount the source tree, set `DEBUG=0` and an explicit host list,
 provide secrets externally, put a TLS-terminating reverse proxy in front of
 the app, and run a production WSGI server such as Gunicorn instead of
 `runserver`. Restrict the Docker socket and backup directory permissions, and
@@ -85,58 +85,63 @@ container restart to hide migration failures.
 
 ## Portainer Community Edition deployment
 
-Portainer CE repository deployments receive Compose interpolation values from
-the stack editor's **Environment variables** table. The tracked
-`compose.portainer.yml` declares the required settings explicitly, including
-`ALLOWED_HOSTS`, `SECRET_KEY`, and `POSTGRES_PASSWORD`. Do not use an external
-`env_file` path: Portainer's Compose process may not be able to see files on the
-Docker LXC host filesystem.
+The CE stack is a portable image-based deployment. It pulls the pinned
+`ghcr.io/itoms-hub/bearbiz:0.9.5` image by default; it does not build from a
+checkout, use host bind paths, mount the Docker socket, or reference an
+external `env_file`. The web container runs migrations before Gunicorn starts,
+waits for PostgreSQL health, persists data in the explicitly named Docker
+volumes `bearbiz_postgres`, `bearbiz_media`, and `bearbiz_backups`, and publishes
+`8002:8000`.
 
-In Portainer, add these environment rows (use real private values for the two
-secret entries):
+### First deployment
 
-```text
-SECRET_KEY                  replace-with-a-long-random-value
-POSTGRES_PASSWORD           replace-with-a-strong-password
-ALLOWED_HOSTS               localhost,127.0.0.1,LXC_HOST_IP
-DJANGO_ALLOWED_HOSTS        localhost,127.0.0.1,LXC_HOST_IP
-DEBUG                       0
-POSTGRES_DB                 bearbiz
-POSTGRES_USER               bearbiz
-BACKUP_OWNER_UID            1000
-BACKUP_OWNER_GID            1000
-```
-
-`POSTGRES_HOST` is deliberately set to the internal Compose service name `db`
-by the stack. The stack uses stable Docker-host paths `/opt/bearbiz/media` and
-`/opt/bearbiz/backups`, and always publishes `8002:8000`.
-
-In Portainer choose **Stacks → Add stack → Git repository** and fill in:
+In Portainer choose **Stacks → Add stack → Git repository**:
 
 ```text
-Repository URL:       your Bearbiz Git repository URL
-Repository reference: main (or the release tag to deploy)
+Repository URL:       https://github.com/iToms-hub/bearbiz.git
+Repository reference: refs/heads/main
 Compose path:         compose.portainer.yml
 ```
 
-Keep the stack **Environment variables** table populated with the rows above.
-Remove any blank placeholder row. On an LXC host, the media and backup paths
-are on the Docker host. If the host is reached through a reverse proxy, add
-that hostname to both allowed-host variables and configure the upstream.
+The repository is public, so leave repository authentication off and TLS
+verification on. In the stack editor's **Environment variables** table, add the
+environment rows below, or upload a private `stack.env` file through Portainer;
+set these values. Never commit the file or paste real secrets into Git:
 
-Before first deploy, create and permission the persistent directories on the
-Docker host. Match ownership to the container application user as appropriate:
-
-```bash
-sudo mkdir -p /opt/bearbiz/media /opt/bearbiz/backups
-sudo chown -R 1000:1000 /opt/bearbiz/media /opt/bearbiz/backups
+```text
+SECRET_KEY            <long-random-private-value>
+POSTGRES_PASSWORD     <strong-private-password>
+ALLOWED_HOSTS         localhost,127.0.0.1,<deployment-host>
+DJANGO_ALLOWED_HOSTS  localhost,127.0.0.1,<deployment-host>
+DEBUG                 0
+POSTGRES_DB           bearbiz
+POSTGRES_USER         bearbiz
+BACKUP_OWNER_UID      1000
+BACKUP_OWNER_GID      1000
+BEARBIZ_IMAGE_TAG     0.9.5
+GUNICORN_WORKERS      3
 ```
 
-The PostgreSQL named volume `bearbiz_postgres`, the media bind mount, and the
-backup bind mount are persistent. Keep them when updating the repository; never
-run `docker compose -f compose.portainer.yml down -v` during an upgrade. Deploy
-a new tag, verify the backup, then let the web container apply migrations before
-checking `/health/`. Copy backups to separate durable storage and test restores.
+`BEARBIZ_IMAGE_TAG` is optional; omit it to use `0.9.5`. The stack sets
+`POSTGRES_HOST=db` and the internal backup paths itself. Add any reverse-proxy
+hostname to both allowed-host variables. Remove blank placeholder rows before
+deploying.
+
+GHCR package visibility is separate from GitHub repository visibility. The
+image must be made **public** in the repository's Packages settings for an
+unauthenticated Portainer/Docker pull. If the package remains private, configure
+Portainer's registry credentials for `ghcr.io` with a read-only package token;
+do not put that token in the compose file or Git. The workflow publishes on
+`main` as `latest` plus an immutable SHA tag, and on version tags such as
+`v0.9.6` as `0.9.6` (plus safe semver tags and SHA). Deploy a version tag for
+repeatable releases; advance `BEARBIZ_IMAGE_TAG` only after verifying a backup
+and the new image.
+
+The named volumes survive stack updates. Never run `docker compose -f
+compose.portainer.yml down -v` or delete a Portainer volume during a routine
+upgrade. Before updating, verify a database-plus-media backup; redeploy, allow
+migrations to finish, then verify container health and `GET /health/` at
+`http://<deployment-host>:8002/`.
 
 ## What Bearbiz does
 
