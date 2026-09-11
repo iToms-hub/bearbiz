@@ -7,10 +7,7 @@
     <style>
       @page {
         size: Letter portrait;
-        margin: 0.55in 0.35in 0.6in;
-        @bottom-left { content: "© BEARbiZ 2026"; color: #555; font-size: 8pt; }
-        @bottom-center { content: "For internal use only"; color: #555; font-size: 8pt; }
-        @bottom-right { content: "Page " counter(page) " of " counter(pages); color: #555; font-size: 8pt; }
+        margin: 0.55in 0.35in 0.82in;
       }
       body { font-family: sans-serif; color: #111; font-size: 10pt; }
       h1 { font-size: 18pt; margin: 0 0 0.2cm; }
@@ -18,8 +15,15 @@
       p { margin: 0 0 0.35cm; color: #444; }
       .context { border-bottom: 1px solid #999; margin-bottom: 0.5cm; padding-bottom: 0.25cm; }
       .title-row { display: table; width: 100%; table-layout: fixed; }
-      .title-row h1 { display: table-cell; width: 68%; vertical-align: middle; }
-      .title-row img { display: table-cell; width: 1.8in; height: auto; max-height: 0.45in; object-fit: contain; object-position: right center; margin-left: auto; }
+      .title-row h1 { display: table-cell; width: 100%; vertical-align: middle; }
+      .pdf-footer { position: fixed; bottom: -0.62in; left: 0; right: 0; height: 0.36in; color: #555; font-size: 7pt; }
+      .pdf-footer-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+      .pdf-footer-table td { width: 33.333%; padding: 0; border: 0; vertical-align: middle; white-space: nowrap; }
+      .pdf-footer-left { text-align: left; }
+      .pdf-footer-center { text-align: center; }
+      .pdf-footer-right { text-align: right; }
+      .pdf-footer img { width: 0.22in; height: 0.22in; vertical-align: middle; margin-right: 0.04in; }
+      .pdf-page-counter::before { content: "Page " counter(page) " of " counter(pages); }
       table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 7pt; }
       th, td { border: 1px solid #999; padding: 0.06cm 0.08cm; text-align: center; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
       th { background: #eee; }
@@ -40,7 +44,6 @@
     <div class="context">
       <div class="title-row">
         <h1>{{ report_pdf_title }}</h1>
-        <img src="{{ report_pdf_logo_url }}" alt="BEARbiz">
       </div>
       <h2>{{ report_view_title }}</h2>
       <p>{{ report_view_note }} · Filter: {{ report_date_mode|title }} · Showing {{ report_filtered_count }} of {{ report_total_count }} weeks.</p>
@@ -51,5 +54,12 @@
         <tbody>{% for row in report_rows %}<tr class="{{ row.row_class|default:'' }}">{% for value in row.values %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody>
       </table>
     {% else %}<p>No report data yet.</p>{% endif %}
+    <footer class="pdf-footer">
+      <table class="pdf-footer-table"><tr>
+        <td class="pdf-footer-left"><img src="{{ report_pdf_logo_url }}" alt="BEARbiZ compact logo">© BEARbiZ 2026</td>
+        <td class="pdf-footer-center">For internal use only</td>
+        <td class="pdf-footer-right"><span class="pdf-page-counter"></span></td>
+      </tr></table>
+    </footer>
   </body>
 </html>

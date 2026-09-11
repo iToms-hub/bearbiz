@@ -157,7 +157,7 @@ def performance_pdf(request: HttpRequest) -> HttpResponse:
         performance_chart_svg=state["chart_svg"],
         segment_headers=_segments_range_report_headers(),
         report_pdf_title=filename.removesuffix(".pdf"),
-        report_pdf_logo_url=(Path(settings.STATICFILES_DIRS[0]) / "images" / "bearbiz-banner.png").as_uri(),
+        report_pdf_logo_url=(Path(settings.STATICFILES_DIRS[0]) / "images" / "bearbiz-mark.png").as_uri(),
     )
     html = render(request, "performance/associates_pdf.html", context).content.decode("utf-8")
     pdf = HTML(string=html, base_url=request.build_absolute_uri("/")).write_pdf()
@@ -425,7 +425,7 @@ def report_section(request: HttpRequest, number: int = 1) -> HttpResponse:
 def report_pdf(request: HttpRequest, number: int = 1) -> HttpResponse:
     context = _report_context(request, number)
     report = cast(dict[str, Any], context["report"])
-    context["report_pdf_logo_url"] = (Path(settings.STATICFILES_DIRS[0]) / "images" / "bearbiz-banner.png").as_uri()
+    context["report_pdf_logo_url"] = (Path(settings.STATICFILES_DIRS[0]) / "images" / "bearbiz-mark.png").as_uri()
     html = render(request, "reports/report_pdf.html", context).content.decode("utf-8")
     pdf = HTML(string=html, base_url=request.build_absolute_uri("/")).write_pdf()
     response = HttpResponse(pdf or b"", content_type="application/pdf")
