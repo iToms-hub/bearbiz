@@ -46,7 +46,7 @@
         <h1>{{ report_pdf_title }}</h1>
       </div>
       <h2>{{ report_view_title }}</h2>
-      <p>{{ report_view_note }} · Filter: {{ report_date_mode|title }} · Showing {{ report_filtered_count }} of {{ report_total_count }} weeks.</p>
+      <p>{{ report_view_note }} · {{ report_period_label }}</p>
     </div>
     {% if report_rows %}
       <table class="{{ report_table_class|default:'report-grid striped' }}">

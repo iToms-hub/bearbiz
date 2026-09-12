@@ -510,6 +510,7 @@ def _report_context(request: HttpRequest, number: int) -> dict[str, Any]:
         report_view_title=str(report.get("viewer_title", "Weekly report data")),
         report_view_note=str(report_date_state.get("note") or report.get("viewer_note", "Newest week first, with each week in its own row.")),
         report_table_class=report_date_state["table_class"],
+        report_period_label=report_date_state["period_label"],
         report_pdf_url=f'{reverse("reports:report-pdf", kwargs={"number": number})}?{request.META.get("QUERY_STRING", "")}' if request.META.get("QUERY_STRING") else reverse("reports:report-pdf", kwargs={"number": number}),
     )
     report_pdf_filename = _report_pdf_filename(report, request, context)
@@ -1086,7 +1087,77 @@ def _gift_cards_associate_report_headers() -> list[str]:
     return ["Week", "Date", "Associate #", "Name", "Total Transactions", "Total Transactions with GC Bonus", "% Transactions w/ GC Bonus", "Missed Opportunities"]
 
 
-def _gift_cards_associate_report_rows(summaries: list[GiftCardsSummary], selected_associate: str) -> list[dict[str, object]]:
+def _aggregate_associate_report_rows(summaries: list[Any], selected_associate: str, report_type: str, period_label: str) -> list[dict[str, object]]:
+    specs = {
+        "gift_cards": ("total_transactions", "gc_bonus_transactions", "bonus_percent", "missed_opportunities"),
+        "bonus_club": ("total_transactions", "transactions_with_club", "capture_rate"),
+    }
+    metric_names = specs[report_type]
+    grouped: dict[str, dict[str, object]] = {}
+    store_totals: dict[str, object] = {name: 0.0 for name in metric_names if name != metric_names[2]}
+    store_name = "Store total"
+    store_number = ""
+    for summary in summaries:
+        if report_type == "gift_cards":
+            summary = _refresh_gift_cards_summary_if_needed(cast(ReportUpload, summary.report_upload), summary)
+        else:
+            summary = _refresh_bonus_club_summary_if_needed(cast(ReportUpload, summary.report_upload), summary)
+        if summary is None:
+            continue
+        raw = summary.raw_json if isinstance(summary.raw_json, dict) else {}
+        associates = raw.get("associate_rows") if isinstance(raw.get("associate_rows"), list) else []
+        for row in associates:
+            if not isinstance(row, dict):
+                continue
+            number = str(row.get("associate_number", "")).strip()
+            name = str(row.get("name", "")).strip()
+            if selected_associate and selected_associate not in {number, name} and _normalize_person_name(selected_associate) != _normalize_person_name(name):
+                continue
+            key = number or _normalize_person_name(name)
+            if not key:
+                continue
+            group = grouped.setdefault(key, {"number": number, "name": name, "summary": summary, "values": {metric: 0.0 for metric in metric_names}})
+            metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+            for metric in metric_names:
+                value = _coerce_number(metrics.get(metric))
+                if value is not None and metric != metric_names[2]:
+                    cast(dict[str, object], group["values"])[metric] = float(cast(dict[str, object], group["values"])[metric]) + value
+            if selected_associate:
+                group["summary"] = summary
+        store = raw.get("store_total") if isinstance(raw.get("store_total"), dict) else {}
+        store_metrics = store.get("metrics") if isinstance(store.get("metrics"), dict) else {}
+        store_name = str(store.get("name") or store_name)
+        store_number = str(store.get("associate_number") or store_number)
+        for metric in store_totals:
+            value = _coerce_number(store_metrics.get(metric))
+            if value is not None:
+                store_totals[metric] = float(store_totals[metric]) + value
+    rows: list[dict[str, object]] = []
+    headers_len = 8 if report_type == "gift_cards" else 7
+    for group in grouped.values():
+        values = cast(dict[str, object], group["values"])
+        total = float(values.get(metric_names[0]) or 0)
+        related = float(values.get(metric_names[1]) or 0)
+        rate = related / total * 100 if total else None
+        display = ["Total", "", group["number"], group["name"], _format_number(total), _format_number(related)]
+        if report_type == "gift_cards":
+            display.extend([_format_percent(rate), _format_currency(values.get("missed_opportunities"))])
+        else:
+            display.append(_format_percent(rate))
+        rows.append({"summary": group["summary"], "row_kind": "associate_total", "row_class": "report-summary-row report-summary-total", "values": display[:headers_len]})
+    if not selected_associate and any(value for value in store_totals.values()):
+        total = store_totals[metric_names[0]]
+        related = store_totals[metric_names[1]]
+        display = ["Total", "", store_number, store_name, _format_number(total), _format_number(related), _format_percent(related / total * 100 if total else None)]
+        if report_type == "gift_cards":
+            display.append(_format_currency(store_totals.get("missed_opportunities")))
+        rows.append({"row_kind": "store_total", "row_class": "report-summary-row report-summary-total", "values": display[:headers_len]})
+    return rows
+
+
+def _gift_cards_associate_report_rows(summaries: list[GiftCardsSummary], selected_associate: str, *, aggregate: bool = False, period_label: str = "") -> list[dict[str, object]]:
+    if aggregate:
+        return _aggregate_associate_report_rows(summaries, selected_associate, "gift_cards", period_label)
     rows: list[dict[str, object]] = []
     totals: dict[str, list[float]] = {"total_transactions": [], "gc_bonus_transactions": [], "bonus_percent": [], "missed_opportunities": []}
     selected_name = ""
@@ -1299,7 +1370,9 @@ def _bonus_club_associate_report_headers() -> list[str]:
     return ["Week", "Date", "Associate #", "Name", "Total Transactions", "Transactions with Club #", "Bonus Club Capture Rate"]
 
 
-def _bonus_club_associate_report_rows(summaries: list[BonusClubSummary], selected_associate: str) -> list[dict[str, object]]:
+def _bonus_club_associate_report_rows(summaries: list[BonusClubSummary], selected_associate: str, *, aggregate: bool = False, period_label: str = "") -> list[dict[str, object]]:
+    if aggregate:
+        return _aggregate_associate_report_rows(summaries, selected_associate, "bonus_club", period_label)
     rows: list[dict[str, object]] = []
     totals: dict[str, list[float]] = {"total_transactions": [], "transactions_with_club": [], "capture_rate": []}
     selected_name = ""
@@ -1678,6 +1751,21 @@ def _refresh_segments_summary_if_needed(upload: ReportUpload, summary: SegmentsS
     return getattr(SegmentsSummary, "objects").update_or_create(report_upload=upload, defaults=defaults)[0]
 
 
+def _report_timeframe_label(mode: str, filtered: list[Any], range_start: date, range_end: date, week_end: date, today: date) -> str:
+    if mode == "month":
+        return "Showing monthly totals"
+    if mode == "quarter":
+        quarter = (today.month - 1) // 3 + 1
+        return f"Showing Q{quarter} totals"
+    if mode == "range":
+        if range_start == range_end:
+            return f"Showing totals for {_format_display_date(range_start)}"
+        return f"Showing totals for {_format_display_date(range_start)}–{_format_display_date(range_end)}"
+    if mode == "week":
+        return f"Showing totals for {_format_display_date(week_end)}"
+    return "Showing totals for last week"
+
+
 def _report_date_state(request: HttpRequest, report_type: str) -> dict[str, object]:
     today = _current_date()
     mode = str(request.GET.get("date_filter", "last_week"))
@@ -1749,13 +1837,15 @@ def _report_date_state(request: HttpRequest, report_type: str) -> dict[str, obje
     report_table_class = "report-grid striped"
     if report_type == "weekly_sales" and mode == "year":
         report_table_class = "report-grid report-grid-year"
-    if report_type == "gift_cards" and mode == "range":
+    multi_period = len(filtered) > 1 and mode in {"month", "quarter", "range"}
+    period_label = _report_timeframe_label(mode, filtered, range_start, range_end, week_end, today)
+    if report_type == "gift_cards" and mode in {"month", "quarter", "range"}:
         headers = _gift_cards_associate_report_headers()
-        rows = _gift_cards_associate_report_rows(filtered, selected_associate)
+        rows = _gift_cards_associate_report_rows(filtered, selected_associate, aggregate=multi_period, period_label=period_label)
         report_table_class = "report-grid report-grid-associate"
-    elif report_type == "bonus_club" and mode == "range":
+    elif report_type == "bonus_club" and mode in {"month", "quarter", "range"}:
         headers = _bonus_club_associate_report_headers()
-        rows = _bonus_club_associate_report_rows(filtered, selected_associate)
+        rows = _bonus_club_associate_report_rows(filtered, selected_associate, aggregate=multi_period, period_label=period_label)
         report_table_class = "report-grid report-grid-associate"
     elif report_type == "segments" and mode == "range":
         headers = _segments_range_report_headers()
@@ -1765,13 +1855,13 @@ def _report_date_state(request: HttpRequest, report_type: str) -> dict[str, obje
         rows = row_builder(filtered)
     note = ""
     if report_type == "gift_cards":
-        if mode == "range":
-            note = f"Weekly associate performance for {selected_associate_label or 'the selected associate'} over the selected timeframe."
+        if mode in {"month", "quarter", "range"}:
+            note = f"{period_label} for {selected_associate_label or 'all associates'}."
         else:
             note = "Waiting on weekly sales." if any(not row.get("weekly_sales_ready", True) for row in rows) else "One row per associate, store total at bottom."
     elif report_type == "bonus_club":
-        if mode == "range":
-            note = f"Weekly associate performance for {selected_associate_label or 'the selected associate'} over the selected timeframe."
+        if mode in {"month", "quarter", "range"}:
+            note = f"{period_label} for {selected_associate_label or 'all associates'}."
         else:
             note = "One row per associate, store total at bottom."
     elif report_type == "segments" and mode == "range":
@@ -1797,6 +1887,7 @@ def _report_date_state(request: HttpRequest, report_type: str) -> dict[str, obje
         "selected_associate_label": selected_associate_label,
         "range_select_label": range_select_label,
         "table_class": report_table_class,
+        "period_label": period_label,
     }
 
 

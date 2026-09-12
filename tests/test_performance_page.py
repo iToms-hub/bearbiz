@@ -370,3 +370,42 @@ def test_performance_pdf_preserves_selection_and_is_portrait(client: Client, tmp
     assert all(page_images)
     assert any(width / height == pytest.approx(1559 / 941, rel=0.02) for images in page_images for _, _, width, height, *_ in images)
     assert "BEARbiZ banner logo" not in pdf_text
+
+
+@pytest.mark.django_db()
+def test_gift_cards_multi_week_range_renders_one_combined_associate_result(client: Client, tmp_path: Path) -> None:
+    with override_settings(MEDIA_ROOT=tmp_path):
+        for week, period_end, total, bonus in [
+            (30, date(2026, 8, 2), 100, 10),
+            (31, date(2026, 8, 9), 200, 80),
+        ]:
+            upload = _upload(f"gift-{week}.pdf", "gift_cards")
+            GiftCardsSummary.objects.create(
+                report_upload=upload, fiscal_year=2026, fiscal_week=week,
+                fiscal_period_end=period_end, raw_json={**_gift_payload(total, bonus), "weekly_sales_dpt": 0},
+            )
+        html = client.get(reverse("reports:report-number", kwargs={"number": 4}), {
+            "date_filter": "range", "range_start": "2026-08-01", "range_end": "2026-08-10",
+            "associate": "1234567",
+        }).content.decode()
+
+    assert "300" in html and "90" in html and "30%" in html
+    assert "08/02/26" not in html and "08/09/26" not in html
+    assert "Showing totals for 08/01/26–08/10/26" in html
+
+
+@pytest.mark.django_db()
+def test_bonus_club_single_week_range_keeps_exact_week_row(client: Client, tmp_path: Path) -> None:
+    with override_settings(MEDIA_ROOT=tmp_path):
+        upload = _upload("bonus.pdf", "bonus_club")
+        BonusClubSummary.objects.create(
+            report_upload=upload, fiscal_year=2026, fiscal_week=31,
+            fiscal_period_end=date(2026, 8, 9), raw_json=_bonus_payload(80, 32),
+        )
+        html = client.get(reverse("reports:report-number", kwargs={"number": 5}), {
+            "date_filter": "range", "range_start": "2026-08-09", "range_end": "2026-08-09",
+            "associate": "1234567",
+        }).content.decode()
+
+    assert "08/09/26" in html and "80" in html and "32" in html and "40%" in html
+    assert "Showing totals for 08/09/26" in html

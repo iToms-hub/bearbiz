@@ -107,7 +107,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert "$20,366" in report_six_html
         assert 'aria-label="Section tabs"' not in report_six_html
         assert 'class="page-action upload-action"' not in report_six_html
-        assert 'Showing 1 of 1 weeks.' in report_six_html
+        assert 'Showing totals for last week' in report_six_html
         assert "LY Traffic" not in report_six_html
         assert "Sales Tr" not in report_six_html
         assert "Cap Rate" not in report_six_html
@@ -1315,7 +1315,7 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         font-size: 0.9rem;
         line-height: 1.1;
         border-radius: 0.45rem;""" in report_html
-        assert 'Showing 1 of 1 weeks.' in report_html
+        assert 'Showing totals for last week' in report_html
         assert 'aria-label="Section tabs"' not in report_html
 
         detail_response = client.get(reverse("reports:detail", args=[record.pk]))
@@ -1431,14 +1431,13 @@ def test_gift_cards_associate_range_view(client: Client, tmp_path: Path) -> None
     assert "Montejano, Mindy" in html
     assert "Vega, Alex" in html
     assert "Store Sales" not in html
-    assert "Average" in html
+    assert "Average" not in html
     assert "<td>Total</td>" in html
-    assert "<tr class=\"report-spacer-row\">" in html
+    assert "02/01/26–02/28/26" in html
     assert "$3,170.33" in html
-    assert "$1,585.17" in html
-    assert "77.5" in html
-    assert html.index("<td>Total</td>") > html.index("Montejano, Mindy")
-    assert html.index("<td>Average</td>") > html.index("<td>Total</td>")
+    assert "155" in html
+    assert "34" in html
+    assert "21.94%" in html
 
 
 @pytest.mark.django_db()
@@ -1514,13 +1513,12 @@ def test_bonus_club_associate_range_view(client: Client, tmp_path: Path) -> None
     assert "Vega, Alex" in html
     assert "Store Sales" not in html
     assert "Missed Opportunities" not in html
-    assert "Average" in html
+    assert "Average" not in html
     assert "<td>Total</td>" in html
-    assert "<tr class=\"report-spacer-row\">" in html
+    assert "02/01/26–02/28/26" in html
+    assert "155" in html
+    assert "82" in html
     assert "52.9%" in html
-    assert "52.75%" in html
-    assert html.index("<td>Total</td>") > html.index("Montejano, Mindy")
-    assert html.index("<td>Average</td>") > html.index("<td>Total</td>")
 
 
 @pytest.mark.django_db()
