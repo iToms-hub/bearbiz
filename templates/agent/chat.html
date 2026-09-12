@@ -3,9 +3,6 @@
 {% block content %}
   <section class="chat-layout">
     <div class="chat-header">
-      <div>
-        <p class="muted">Chat with Bearbiz’s AI about sales, uploads, and trends.</p>
-      </div>
       <div class="chat-status {% if chat_enabled %}is-online{% else %}is-offline{% endif %}">
         {% if chat_enabled %}
           AI connected
@@ -19,10 +16,8 @@
       <div class="chat-thread" data-chat-thread>
         {% if chat_messages %}
           {% for message in chat_messages %}
-            <article class="chat-message {{ message.role }}">
-              <div class="chat-avatar">{% if message.role == 'assistant' %}AI{% else %}You{% endif %}</div>
+            <article class="chat-message {{ message.role }}" aria-label="{% if message.role == 'assistant' %}Assistant message{% else %}Your message{% endif %}">
               <div class="chat-bubble">
-                <div class="chat-meta">{% if message.role == 'assistant' %}Bearbiz AI{% else %}You{% endif %}</div>
                 {{ message.content }}
               </div>
             </article>
@@ -73,6 +68,7 @@
       const newChat = document.querySelector('[data-new-chat]');
       if (!form || !input || !thread) return;
 
+      const storageKey = 'bearbiz.agent.chat_history.v1';
       let conversationHistory = [];
       const emptyState = thread.querySelector('.chat-empty')?.outerHTML || '';
 
@@ -103,14 +99,20 @@
       const appendMessage = (role, content) => {
         const article = document.createElement('article');
         article.className = `chat-message ${role}`;
-        article.innerHTML = `
-          <div class="chat-avatar">${role === 'assistant' ? 'AI' : 'You'}</div>
-          <div class="chat-bubble">
-            <div class="chat-meta">${role === 'assistant' ? 'Bearbiz AI' : 'You'}</div>
-            ${escapeHtml(content).replace(/\n/g, '<br>')}
-          </div>
-        `;
+        article.setAttribute('aria-label', role === 'assistant' ? 'Assistant message' : 'Your message');
+        article.innerHTML = `<div class="chat-bubble">${escapeHtml(content).replace(/\n/g, '<br>')}</div>`;
         thread.appendChild(article);
+      };
+
+      const restoreHistory = () => {
+        try {
+          const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          if (!Array.isArray(saved) || saved.some((item) => !item || !['user', 'assistant'].includes(item.role) || typeof item.content !== 'string')) { localStorage.removeItem(storageKey); return; }
+          if (!saved.length) return;
+          ensureHistoryShell();
+          conversationHistory = saved.slice(-24);
+          conversationHistory.forEach((item) => appendMessage(item.role, item.content));
+        } catch (_) { localStorage.removeItem(storageKey); }
       };
 
       document.addEventListener('click', (event) => {
@@ -123,6 +125,7 @@
 
       newChat?.addEventListener('click', async () => {
         conversationHistory = [];
+        localStorage.removeItem(storageKey);
         input.value = '';
         thread.innerHTML = emptyState;
         scrollToBottom();
@@ -157,12 +160,15 @@
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.ok) {
           appendMessage('assistant', data.error || 'I could not reach the AI right now.');
+          conversationHistory.push({ role: 'user', content: message }, { role: 'assistant', content: data.error || 'I could not reach the AI right now.' });
+          localStorage.setItem(storageKey, JSON.stringify(conversationHistory.slice(-24)));
           scrollToBottom();
           return;
         }
 
         appendMessage('assistant', data.reply);
         conversationHistory.push({ role: 'user', content: message }, { role: 'assistant', content: data.reply });
+        localStorage.setItem(storageKey, JSON.stringify(conversationHistory.slice(-24)));
         scrollToBottom();
       });
 
@@ -173,6 +179,7 @@
         }
       });
 
+      restoreHistory();
       scrollToBottom();
     })();
   </script>

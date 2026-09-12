@@ -167,8 +167,9 @@ def chat_about_bearbiz(
         config.system_prompt.strip(),
         "",
         "You are Bearbiz's AI agent. Answer questions about the store's reports, uploads, trends, and AI setup.",
-        "Use the Bearbiz data context below as the source of truth for factual claims.",
-        "If the context does not include an answer, say what is missing instead of guessing.",
+        "Use only the supplied Bearbiz data context as the source of truth; do not invent values or arithmetic.",
+        "Preserve exact values and labels, explain the timeframe used, and show a readable table when requested or useful.",
+        "If data is missing or an associate is ambiguous, state exactly what is missing or which matches were found.",
         "Keep the response concise, practical, and easy to act on.",
         "",
         "Bearbiz data context (read only):",
@@ -239,7 +240,7 @@ def fetch_available_model_names(source: Any | None = None) -> tuple[str, ...]:
     return probe.models if probe.ok else ()
 
 
-def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None = None) -> dict[str, Any]:
+def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None = None, question: str = "") -> dict[str, Any]:
     weekly_summaries = list(
         getattr(WeeklySalesSummary, "objects").select_related("report_upload").order_by("-fiscal_year", "-fiscal_week", "-id")[:limit]
     )
@@ -280,6 +281,7 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
                 "traffic": kpis.get("traffic"),
                 "conversion_rate": kpis.get("conversion_rate"),
                 "sales_trans": kpis.get("sales_trans"),
+                "summary_rows": (raw_json.get("summary_rows", []) if isinstance(raw_json.get("summary_rows"), list) else [])[:25],
                 "ai_summary": summary.ai_summary,
             }
         )
@@ -305,6 +307,7 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
                     "store_name": target_data.get("store_name"),
                     "ranks": target_data.get("ranks", {}),
                 },
+                "store_rows": (raw_json.get("store_rows", []) if isinstance(raw_json.get("store_rows"), list) else [])[:25],
                 "ai_summary": summary.ai_summary,
             }
         )
@@ -341,7 +344,7 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
                         "name": row.get("name"),
                         "metrics": row.get("metrics", {}),
                     }
-                    for row in associate_list[:3]
+                    for row in associate_list[:25]
                     if isinstance(row, Mapping)
                 ],
                 "ai_summary": summary.ai_summary,
@@ -378,7 +381,7 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
                         "name": row.get("name"),
                         "metrics": row.get("metrics", {}),
                     }
-                    for row in associate_list[:3]
+                    for row in associate_list[:25]
                     if isinstance(row, Mapping)
                 ],
                 "ai_summary": summary.ai_summary,
@@ -409,7 +412,7 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
                         "job_title": row.get("job_title"),
                         "metrics": row.get("metrics", {}),
                     }
-                    for row in manager_list[:3]
+                    for row in manager_list[:25]
                     if isinstance(row, Mapping)
                 ],
                 "store_total": {
@@ -447,7 +450,7 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
     dashboard = build_six_week_dashboard(dashboard_source, selection="all", reference_date=dashboard_reference).to_dict()
     compact_latest_report = _compact_chat_report_record(report_records[0]) if report_records else None
     compact_recent_reports = [_compact_chat_report_record(record) for record in report_records[:limit]]
-    return {
+    context = {
         "report_count": len(report_records),
         "latest_report": compact_latest_report,
         "recent_reports": compact_recent_reports,
@@ -461,6 +464,66 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
         ],
         "dashboard": dashboard,
     }
+    # Keep the normal context compact, but retain exact rows for questions that
+    # need deterministic lookup/aggregation rather than model arithmetic.
+    context["report_details"] = report_records[: max(1, min(limit, 12))]
+    if question:
+        context["deterministic_query"] = _build_deterministic_query(
+            question, gift_cards_summaries, bonus_club_summaries
+        )
+    return context
+
+
+def _build_deterministic_query(question: str, gift_cards: list[Any], bonus_club: list[Any]) -> dict[str, Any]:
+    """Return labeled, exact data for common report questions."""
+    lowered = question.lower()
+    if "gift" in lowered and ("card" in lowered or "gc" in lowered):
+        names = [part.strip(" ,?.!:'\"’‘") for part in question.split() if len(part.strip(" ,?.!:'\"’‘")) > 1]
+        # Names are matched only against persisted rows; no fuzzy guessing.
+        rows: list[dict[str, Any]] = []
+        latest = max((s.fiscal_period_end for s in gift_cards if s.fiscal_period_end), default=None)
+        month = (latest.year, latest.month) if latest else None
+        candidates: dict[str, dict[str, Any]] = {}
+        for summary in gift_cards:
+            if month and (not summary.fiscal_period_end or (summary.fiscal_period_end.year, summary.fiscal_period_end.month) != month):
+                continue
+            raw = summary.raw_json if isinstance(summary.raw_json, Mapping) else {}
+            for row in raw.get("associate_rows", []) if isinstance(raw.get("associate_rows"), list) else []:
+                if not isinstance(row, Mapping):
+                    continue
+                name = str(row.get("name") or "").strip()
+                key = str(row.get("associate_number") or name).strip()
+                candidates.setdefault(key, {"name": name, "associate_number": row.get("associate_number"), "metrics": {}})
+                metrics = row.get("metrics") if isinstance(row.get("metrics"), Mapping) else {}
+                out = candidates[key]["metrics"]
+                for metric in ("total_transactions", "gc_bonus_transactions", "missed_opportunities"):
+                    value = _number(metrics.get(metric))
+                    if value is not None:
+                        out[metric] = out.get(metric, 0) + value
+                out["weeks"] = out.get("weeks", 0) + 1
+        requested = [c for c in candidates.values() if any(n.lower() == str(c["name"]).lower() or n.lower() in {p.lower() for p in str(c["name"]).split()} for n in names)]
+        if len(requested) == 1:
+            return {"type": "gift_cards_month", "timeframe": f"{latest.year}-{latest.month:02d}" if latest else None, "matches": requested, "status": "ok"}
+        return {"type": "gift_cards_month", "timeframe": f"{latest.year}-{latest.month:02d}" if latest else None, "matches": requested, "candidate_names": [c["name"] for c in candidates.values()], "status": "ambiguous_or_missing"}
+    if "bonus" in lowered and "club" in lowered and ("trend" in lowered or "week" in lowered):
+        ordered = sorted(bonus_club, key=lambda s: (s.fiscal_period_end or date.min, s.fiscal_year, s.fiscal_week))[-8:]
+        weekly = []
+        for summary in ordered:
+            raw = summary.raw_json if isinstance(summary.raw_json, Mapping) else {}
+            store = raw.get("store_total") if isinstance(raw.get("store_total"), Mapping) else {}
+            metrics = store.get("metrics") if isinstance(store.get("metrics"), Mapping) else {}
+            total = _number(metrics.get("total_transactions")) or 0
+            club = _number(metrics.get("transactions_with_club")) or 0
+            weekly.append({"fiscal_year": summary.fiscal_year, "fiscal_week": summary.fiscal_week, "period_end": summary.fiscal_period_end.isoformat() if summary.fiscal_period_end else None, "total_transactions": total, "transactions_with_club": club, "capture_rate": (club / total * 100 if total else None)})
+        return {"type": "bonus_club_8_week_trend", "weeks": weekly, "week_count": len(weekly), "status": "ok" if weekly else "missing"}
+    return {"type": "general", "status": "use_report_details"}
+
+
+def _number(value: Any) -> float | None:
+    try:
+        return float(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _sanitize_chat_history(history: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:

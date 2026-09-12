@@ -553,8 +553,8 @@
       .chat-layout {
         display: grid;
         gap: 1rem;
-        height: calc(100vh - 11rem);
-        min-height: 30rem;
+        height: calc(100dvh - 10rem);
+        min-height: 24rem;
         grid-template-rows: auto minmax(0, 1fr);
       }
       .chat-header {
@@ -597,11 +597,12 @@
       }
       .chat-thread {
         min-height: 0;
-        padding: 0.75rem;
+        padding: 0.5rem 0.65rem;
         overflow: auto;
+        overflow-y: auto;
         display: flex;
         flex-direction: column;
-        gap: 0.45rem;
+        gap: 0.3rem;
       }
       .chat-empty {
         margin: auto;
@@ -629,7 +630,7 @@
       }
       .chat-message {
         display: flex;
-        gap: 0.55rem;
+        gap: 0.35rem;
         align-items: flex-start;
         max-width: min(42rem, 100%);
       }
@@ -637,45 +638,23 @@
         align-self: flex-end;
         flex-direction: row-reverse;
       }
-      .chat-avatar {
-        width: 1.75rem;
-        height: 1.75rem;
-        border-radius: 999px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: none;
-        font-size: 0.78rem;
-        font-weight: 700;
-        border: 1px solid var(--border);
-        background: Canvas;
-      }
-      .chat-message.user .chat-avatar {
-        background: color-mix(in srgb, var(--accent) 12%, Canvas);
-        border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-      }
       .chat-bubble {
         max-width: 100%;
-        padding: 0.4rem 0.6rem;
+        padding: 0.28rem 0.5rem;
         border-radius: 0.65rem;
         border: 1px solid var(--border);
         background: Canvas;
         white-space: pre-wrap;
         overflow-wrap: anywhere;
         font-size: 0.92rem;
-        line-height: 1.35;
+        line-height: 1.25;
       }
       .chat-message.user .chat-bubble {
         background: color-mix(in srgb, var(--accent) 14%, Canvas);
         border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
       }
-      .chat-meta {
-        font-size: 0.7rem;
-        color: var(--text-muted);
-        margin-bottom: 0.15rem;
-      }
       .chat-composer {
-        padding: 0.8rem;
+        padding: 0.55rem 0.65rem;
         position: sticky;
         bottom: 0;
         z-index: 1;

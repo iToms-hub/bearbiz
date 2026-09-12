@@ -38,7 +38,7 @@ def agent_chat(request: HttpRequest) -> HttpResponse:
         history = payload.get("history", [])
         if not isinstance(history, list):
             history = []
-        context = build_bearbiz_chat_context(limit=4)
+        context = build_bearbiz_chat_context(limit=8, question=message)
         result = chat_about_bearbiz(message, history=history, settings=ai_settings, data_context=context)
         if not result.ok:
             return JsonResponse(
