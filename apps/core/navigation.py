@@ -20,7 +20,7 @@ VERSION_CACHE_SECONDS = 15 * 60
 _version_cache: tuple[float, str | None] | None = None
 _version_cache_lock = threading.Lock()
 _SEMVER_PATTERN = re.compile(
-    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
@@ -147,7 +147,7 @@ def clear_version_cache() -> None:
         _version_cache = None
 
 
-def _parse_version(value: str) -> tuple[int, int, int, tuple[str, ...]] | None:
+def _parse_version(value: str) -> tuple[int, int, int, int, tuple[str, ...]] | None:
     match = _SEMVER_PATTERN.fullmatch(value)
     if not match:
         return None
@@ -155,7 +155,7 @@ def _parse_version(value: str) -> tuple[int, int, int, tuple[str, ...]] | None:
     if any(identifier.isdigit() and len(identifier) > 1 and identifier.startswith("0") for identifier in prerelease):
         return None
     return (
-        int(match.group(1)), int(match.group(2)), int(match.group(3)),
+        int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4) or 0),
         prerelease,
     )
 
@@ -165,9 +165,9 @@ def _is_newer_version(remote: str, installed: str) -> bool:
     installed_parts = _parse_version(installed)
     if not remote_parts or not installed_parts:
         return False
-    if remote_parts[:3] != installed_parts[:3]:
-        return remote_parts[:3] > installed_parts[:3]
-    remote_pre, installed_pre = remote_parts[3], installed_parts[3]
+    if remote_parts[:4] != installed_parts[:4]:
+        return remote_parts[:4] > installed_parts[:4]
+    remote_pre, installed_pre = remote_parts[4], installed_parts[4]
     if not remote_pre or not installed_pre:
         return bool(not remote_pre and installed_pre)
     for remote_id, installed_id in zip(remote_pre, installed_pre):

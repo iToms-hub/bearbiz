@@ -530,7 +530,6 @@ def _build_deterministic_query(question: str, gift_cards: list[Any], bonus_club:
     """Return labeled, exact data for common report questions."""
     lowered = question.lower()
     if "gift" in lowered and ("card" in lowered or "gc" in lowered):
-        names = [str(row.get("name") or "").strip() for summary in gift_cards for row in ((summary.raw_json or {}).get("associate_rows", []) if isinstance(summary.raw_json, Mapping) else []) if isinstance(row, Mapping)]
         latest = max((s.fiscal_period_end for s in gift_cards if s.fiscal_period_end), default=None)
         month = _requested_month(question, latest)
         candidates: dict[str, dict[str, Any]] = {}
@@ -659,7 +658,7 @@ def _post_json(url: str, payload: Mapping[str, Any], *, api_key: str) -> dict[st
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "bearbiz-ai/0.9.8",
+        "User-Agent": "bearbiz-ai/0.9.8.1",
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -683,7 +682,7 @@ def _post_json(url: str, payload: Mapping[str, Any], *, api_key: str) -> dict[st
 def _get_json(url: str, *, api_key: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
-        "User-Agent": "bearbiz-ai/0.9.8",
+        "User-Agent": "bearbiz-ai/0.9.8.1",
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
