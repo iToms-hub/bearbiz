@@ -138,7 +138,7 @@ class AIIntegrationSettings(models.Model):
     enabled = models.BooleanField(default=False)
     provider_name = models.CharField(max_length=64, default="openai-compatible")
     api_base_url = models.URLField(default="https://api.openai.com/v1")
-    api_key_env_var = models.CharField(max_length=64, blank=True, default="")
+    api_key = models.TextField(blank=True, default="")
     model_name = models.CharField(max_length=128, default="gpt-4o-mini")
     temperature = models.DecimalField(max_digits=3, decimal_places=2, default=0.20)
     max_output_tokens = models.PositiveSmallIntegerField(default=500)

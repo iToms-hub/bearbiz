@@ -27,14 +27,14 @@ class AIIntegrationSettingsAdmin(admin.ModelAdmin):
         "provider_name",
         "api_base_url",
         "model_name",
-        "api_key_env_var",
+        "api_key",
         "updated_at",
     )
     fields = (
         "enabled",
         "provider_name",
         "api_base_url",
-        "api_key_env_var",
+        "api_key",
         "model_name",
         "temperature",
         "max_output_tokens",

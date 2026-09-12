@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from datetime import date
 import json
-import os
+
 from typing import Any, Mapping, Sequence
 from urllib import error, request
 
@@ -19,7 +19,7 @@ class AIIntegrationConfig:
     provider_name: str = "openai-compatible"
     api_base_url: str = "https://api.openai.com/v1"
     chat_completions_path: str = "/chat/completions"
-    api_key_env_var: str = "BEARBIZ_AI_API_KEY"
+    api_key: str = ""
     model_name: str = "gpt-4o-mini"
     temperature: float = 0.2
     max_output_tokens: int = 500
@@ -44,7 +44,7 @@ class AIIntegrationConfig:
             chat_completions_path=_normalize_path(
                 str(_source_value(source, "chat_completions_path", "/chat/completions"))
             ),
-            api_key_env_var=str(_source_value(source, "api_key_env_var", "BEARBIZ_AI_API_KEY")),
+            api_key=str(_source_value(source, "api_key", "") or "").strip(),
             model_name=str(_source_value(source, "model_name", "gpt-4o-mini")),
             temperature=float(_source_value(source, "temperature", 0.2)),
             max_output_tokens=int(_source_value(source, "max_output_tokens", 500)),
@@ -115,14 +115,7 @@ def summarize_weekly_sales_report(
     if not config.enabled:
         return AIAnalysisResult(enabled=False, error="AI enrichment is disabled.")
 
-    api_key = os.getenv(config.api_key_env_var, "").strip() if config.api_key_env_var else ""
-    if not api_key and config.api_key_env_var:
-        return AIAnalysisResult(
-            enabled=True,
-            provider=config.provider_name,
-            model=config.model_name,
-            error=f"Missing API key in environment variable {config.api_key_env_var}.",
-        )
+    api_key = config.api_key
 
     prompt = _build_prompt(report_payload, source_name=source_name, raw_text=raw_text, config=config)
     url = _join_url(config.api_base_url, config.chat_completions_path)
@@ -166,14 +159,7 @@ def chat_about_bearbiz(
     if not config.enabled:
         return AIChatResult(enabled=False, error="AI chat is disabled.")
 
-    api_key = os.getenv(config.api_key_env_var, "").strip() if config.api_key_env_var else ""
-    if not api_key and config.api_key_env_var:
-        return AIChatResult(
-            enabled=True,
-            provider=config.provider_name,
-            model=config.model_name,
-            error=f"Missing API key in environment variable {config.api_key_env_var}.",
-        )
+    api_key = config.api_key
 
     context = dict(data_context or build_bearbiz_chat_context())
     conversation = _sanitize_chat_history(history or [])
@@ -220,15 +206,7 @@ def chat_about_bearbiz(
 
 def probe_ai_endpoint(source: Any | None = None) -> AIEndpointProbeResult:
     config = AIIntegrationConfig.from_source(source)
-    api_key = os.getenv(config.api_key_env_var, "").strip() if config.api_key_env_var else ""
-
-    if config.api_key_env_var and not api_key:
-        return AIEndpointProbeResult(
-            ok=False,
-            provider=config.provider_name,
-            base_url=config.api_base_url,
-            error=f"Missing API key in environment variable {config.api_key_env_var}.",
-        )
+    api_key = config.api_key
 
     url = _join_url(config.api_base_url, "/models")
     try:

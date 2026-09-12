@@ -22,7 +22,7 @@ def client() -> Client:
 def test_agent_page_and_chat_use_bearbiz_data(client: Client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     media_root = tmp_path / "media"
     media_root.mkdir()
-    AIIntegrationSettings.objects.create(enabled=True, api_key_env_var="", provider_name="openai-compatible", model_name="gpt-4o-mini")
+    AIIntegrationSettings.objects.create(enabled=True, api_key="", provider_name="openai-compatible", model_name="gpt-4o-mini")
 
     with override_settings(MEDIA_ROOT=media_root):
         upload = ReportUpload.objects.create(

@@ -11,6 +11,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, override_settings
 
 from apps.core.ai import AIAnalysisResult, build_bearbiz_chat_context
+from apps.core.forms import AIIntegrationSettingsForm
 from apps.core.models import AIIntegrationSettings
 from apps.reports.models import BonusClubSummary, GiftCardsSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
 from apps.reports.views import _parse_and_store_summary
@@ -22,7 +23,7 @@ def test_ai_settings_page_renders(client) -> None:
 
     assert response.status_code == 200
     assert b"AI integration" in response.content
-    assert b"API key environment variable" in response.content
+    assert b"API key (optional)" in response.content
     assert b'placeholder="https://api.openai.com/v1"' in response.content
     assert b"Test connection" in response.content
     assert b"leave blank" in response.content
@@ -109,10 +110,10 @@ def test_report_upload_persists_ai_summary(monkeypatch) -> None:
 
 
 @pytest.mark.django_db
-def test_report_upload_uses_no_auth_when_api_key_env_var_blank(monkeypatch) -> None:
+def test_report_upload_uses_no_auth_when_api_key_blank(monkeypatch) -> None:
     settings = AIIntegrationSettings.objects.create(
         enabled=True,
-        api_key_env_var="",
+        api_key="",
         provider_name="openai-compatible",
         api_base_url="http://lms.itoms.org/v1",
         model_name="local-model",
@@ -137,6 +138,90 @@ def test_report_upload_uses_no_auth_when_api_key_env_var_blank(monkeypatch) -> N
     assert result.summary == "Local summary"
     assert captured["api_key"] == ""
     assert str(captured["url"]).endswith("/chat/completions")
+
+
+@pytest.mark.django_db
+def test_configured_api_key_is_sent_without_being_rendered_or_returned(monkeypatch) -> None:
+    secret = "test-only-secret"
+    settings = AIIntegrationSettings.objects.create(
+        enabled=True,
+        api_key=secret,
+        api_base_url="http://lms.itoms.org/v1",
+        model_name="local-model",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_post_json(url, payload, *, api_key):
+        captured["api_key"] = api_key
+        return {"choices": [{"message": {"content": "Local summary"}}]}
+
+    monkeypatch.setattr("apps.core.ai._post_json", fake_post_json)
+    result = __import__("apps.core.ai", fromlist=["summarize_weekly_sales_report"]).summarize_weekly_sales_report(
+        {"summary_kpis": {}, "summary_rows": []}, settings=settings
+    )
+
+    assert result.ok is True
+    assert captured["api_key"] == secret
+    assert secret not in result.error
+    assert secret not in str(result.payload)
+
+
+def test_ai_settings_form_uses_optional_api_key_field() -> None:
+    form = AIIntegrationSettingsForm()
+
+    assert "api_key" in form.fields
+    assert form.fields["api_key"].required is False
+    assert "optional" in form.fields["api_key"].help_text.lower()
+    assert form.fields["api_key"].widget.input_type == "password"
+
+
+def test_http_helpers_omit_authorization_for_blank_key(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"data": []}'
+
+    def fake_urlopen(req, timeout):
+        captured["headers"] = dict(req.header_items())
+        return Response()
+
+    monkeypatch.setattr("apps.core.ai.request.urlopen", fake_urlopen)
+    from apps.core.ai import _get_json
+
+    _get_json("http://example.com/v1/models", api_key="")
+    assert "Authorization" not in {key.title() for key in captured["headers"]}
+
+
+def test_http_helpers_send_bearer_authorization_for_configured_key(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"data": []}'
+
+    def fake_urlopen(req, timeout):
+        captured["headers"] = dict(req.header_items())
+        return Response()
+
+    monkeypatch.setattr("apps.core.ai.request.urlopen", fake_urlopen)
+    from apps.core.ai import _get_json
+
+    _get_json("http://example.com/v1/models", api_key="configured-test-key")
+    headers = {key.title(): value for key, value in captured["headers"].items()}
+    assert headers["Authorization"] == "Bearer configured-test-key"
 
 
 @pytest.mark.django_db

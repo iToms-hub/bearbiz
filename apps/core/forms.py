@@ -28,7 +28,7 @@ class AIIntegrationSettingsForm(forms.ModelForm):
             "enabled",
             "provider_name",
             "api_base_url",
-            "api_key_env_var",
+            "api_key",
             "model_name",
             "temperature",
             "max_output_tokens",
@@ -36,7 +36,7 @@ class AIIntegrationSettingsForm(forms.ModelForm):
         help_texts = {
             "enabled": "Turn AI enrichment on only after the endpoint is ready.",
             "api_base_url": "Use the API root that includes /v1, for example https://api.openai.com/v1.",
-            "api_key_env_var": "Leave blank for local endpoints that do not require an API key; otherwise enter the environment variable name that stores it.",
+            "api_key": "Optional API key sent as a Bearer token. Leave blank for authless local or OpenAI-compatible endpoints.",
             "temperature": "Lower values stay more deterministic; higher values get looser.",
         }
         widgets = {
@@ -47,8 +47,9 @@ class AIIntegrationSettingsForm(forms.ModelForm):
     def __init__(self, *args, available_models: tuple[str, ...] | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.available_models = tuple(available_models or ())
-        self.fields["api_key_env_var"].required = False
-        self.fields["api_key_env_var"].widget.attrs.setdefault("placeholder", "BEARBIZ_AI_API_KEY (or leave blank)")
+        self.fields["api_key"].required = False
+        self.fields["api_key"].widget = forms.PasswordInput(attrs={"autocomplete": "new-password"}, render_value=False)
+        self.fields["api_key"].widget.attrs.setdefault("placeholder", "Optional API key (or leave blank)")
         self.fields["model_name"].choices = self._build_model_choices()
         self.fields["model_name"].widget.attrs.setdefault("data-ai-model-select", "true")
         current_base_url = str(self.initial.get("api_base_url") or self.fields["api_base_url"].initial or "")

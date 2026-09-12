@@ -107,9 +107,10 @@
           {% if form.api_base_url.errors %}<span class="error">{{ form.api_base_url.errors|striptags }}</span>{% endif %}
         </div>
         <div>
-          <label for="{{ form.api_key_env_var.id_for_label }}">API key environment variable</label>
-          {{ form.api_key_env_var }}
-          {% if form.api_key_env_var.errors %}<span class="error">{{ form.api_key_env_var.errors|striptags }}</span>{% endif %}
+          <label for="{{ form.api_key.id_for_label }}">API key (optional)</label>
+          {{ form.api_key }}
+          {% if form.api_key.help_text %}<small class="muted">{{ form.api_key.help_text }}</small>{% endif %}
+          {% if form.api_key.errors %}<span class="error">{{ form.api_key.errors|striptags }}</span>{% endif %}
         </div>
         <div>
           <label for="{{ form.model_name.id_for_label }}">Model name</label>
