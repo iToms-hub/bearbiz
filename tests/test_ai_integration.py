@@ -219,6 +219,110 @@ def test_ai_settings_explicit_clear_removes_saved_key(client) -> None:
     assert settings.api_key == ""
 
 
+def _ai_settings_post_data(settings, **overrides):
+    data = {
+        "action": "test",
+        "enabled": "on",
+        "provider_name": settings.provider_name,
+        "api_base_url": settings.api_base_url,
+        "api_key": "",
+        "model_name": settings.model_name,
+        "temperature": settings.temperature,
+        "max_output_tokens": settings.max_output_tokens,
+    }
+    data.update(overrides)
+    return data
+
+
+@pytest.mark.django_db
+def test_ai_connection_test_saves_submitted_configuration_before_probe(client, monkeypatch) -> None:
+    settings = AIIntegrationSettings.objects.create(enabled=False, api_key="")
+    observed = {}
+
+    monkeypatch.setattr("apps.core.views.fetch_ai_model_suggestions", lambda source=None: [])
+
+    def fake_probe(source):
+        source.refresh_from_db()
+        observed.update(enabled=source.enabled, api_key=source.api_key, provider=source.provider_name)
+        return __import__("apps.core.ai", fromlist=["AIEndpointProbeResult"]).AIEndpointProbeResult(
+            ok=True, message="Connected", provider=source.provider_name, base_url=source.api_base_url
+        )
+
+    monkeypatch.setattr("apps.core.views.probe_ai_endpoint", fake_probe)
+    response = client.post(
+        "/settings/ai/",
+        data=_ai_settings_post_data(settings, enabled="on", provider_name="test-provider", api_key="fixture-key"),
+    )
+
+    assert response.status_code == 200
+    settings.refresh_from_db()
+    assert settings.enabled is True
+    assert settings.provider_name == "test-provider"
+    assert settings.api_key == "fixture-key"
+    assert observed == {"enabled": True, "api_key": "fixture-key", "provider": "test-provider"}
+    assert "fixture-key" not in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_ai_connection_test_blank_key_preserves_saved_key(client, monkeypatch) -> None:
+    settings = AIIntegrationSettings.objects.create(enabled=True, api_key="stored-key")
+    monkeypatch.setattr("apps.core.views.fetch_ai_model_suggestions", lambda source=None: [])
+    monkeypatch.setattr(
+        "apps.core.views.probe_ai_endpoint",
+        lambda source: __import__("apps.core.ai", fromlist=["AIEndpointProbeResult"]).AIEndpointProbeResult(
+            ok=True, message="Connected", provider=source.provider_name, base_url=source.api_base_url
+        ),
+    )
+
+    response = client.post("/settings/ai/", data=_ai_settings_post_data(settings))
+
+    assert response.status_code == 200
+    settings.refresh_from_db()
+    assert settings.api_key == "stored-key"
+
+
+@pytest.mark.django_db
+def test_ai_connection_test_explicit_clear_removes_saved_key(client, monkeypatch) -> None:
+    settings = AIIntegrationSettings.objects.create(enabled=True, api_key="stored-key")
+    monkeypatch.setattr("apps.core.views.fetch_ai_model_suggestions", lambda source=None: [])
+    monkeypatch.setattr(
+        "apps.core.views.probe_ai_endpoint",
+        lambda source: __import__("apps.core.ai", fromlist=["AIEndpointProbeResult"]).AIEndpointProbeResult(
+            ok=True, message="Connected", provider=source.provider_name, base_url=source.api_base_url
+        ),
+    )
+
+    response = client.post("/settings/ai/", data=_ai_settings_post_data(settings, clear_api_key="on"))
+
+    assert response.status_code == 200
+    settings.refresh_from_db()
+    assert settings.api_key == ""
+
+
+@pytest.mark.django_db
+def test_ai_connection_test_failure_still_saves_configuration(client, monkeypatch) -> None:
+    settings = AIIntegrationSettings.objects.create(enabled=False, api_key="")
+    monkeypatch.setattr("apps.core.views.fetch_ai_model_suggestions", lambda source=None: [])
+    monkeypatch.setattr(
+        "apps.core.views.probe_ai_endpoint",
+        lambda source: __import__("apps.core.ai", fromlist=["AIEndpointProbeResult"]).AIEndpointProbeResult(
+            ok=False, error="Endpoint unavailable", provider=source.provider_name, base_url=source.api_base_url
+        ),
+    )
+
+    response = client.post(
+        "/settings/ai/",
+        data=_ai_settings_post_data(settings, enabled="on", api_key="fixture-key"),
+    )
+
+    assert response.status_code == 200
+    assert b"Endpoint unavailable" in response.content
+    settings.refresh_from_db()
+    assert settings.enabled is True
+    assert settings.model_name == "gpt-4o-mini"
+    assert settings.api_key == "fixture-key"
+
+
 @pytest.mark.django_db
 def test_ai_settings_saved_key_is_never_rendered_on_reload(client) -> None:
     settings = AIIntegrationSettings.objects.create(enabled=True, api_key="configured-test-key")

@@ -79,10 +79,10 @@ def settings_page(request: HttpRequest, slug: str = "theme") -> HttpResponse:
             action = request.POST.get("action", "save")
             if form.is_valid():
                 if action == "test":
-                    probe_result = probe_ai_endpoint(form.cleaned_data)
+                    ai_settings = form.save()
+                    probe_result = probe_ai_endpoint(ai_settings)
                     available_models = probe_result.models or available_models
                     form = AIIntegrationSettingsForm(
-                        form.cleaned_data,
                         instance=ai_settings,
                         available_models=available_models,
                     )
