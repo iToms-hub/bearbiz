@@ -553,7 +553,9 @@
       .chat-layout {
         display: grid;
         gap: 1rem;
-        min-height: calc(100vh - 10rem);
+        height: calc(100vh - 11rem);
+        min-height: 30rem;
+        grid-template-rows: auto minmax(0, 1fr);
       }
       .chat-header {
         display: flex;
@@ -589,15 +591,17 @@
         background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
         display: grid;
         grid-template-rows: 1fr auto;
-        min-height: calc(100vh - 13rem);
+        min-height: 0;
+        height: 100%;
         overflow: hidden;
       }
       .chat-thread {
-        padding: 1.25rem;
+        min-height: 0;
+        padding: 0.75rem;
         overflow: auto;
         display: flex;
         flex-direction: column;
-        gap: 0.7rem;
+        gap: 0.45rem;
       }
       .chat-empty {
         margin: auto;
@@ -620,14 +624,14 @@
         border-radius: 1rem;
         border: 1px solid var(--border);
         background: Canvas;
-        padding: 0.85rem;
+        padding: 0.55rem 0.7rem;
         text-align: left;
       }
       .chat-message {
         display: flex;
         gap: 0.55rem;
         align-items: flex-start;
-        max-width: min(48rem, 100%);
+        max-width: min(42rem, 100%);
       }
       .chat-message.user {
         align-self: flex-end;
@@ -652,14 +656,14 @@
       }
       .chat-bubble {
         max-width: 100%;
-        padding: 0.65rem 0.8rem;
-        border-radius: 0.9rem;
+        padding: 0.4rem 0.6rem;
+        border-radius: 0.65rem;
         border: 1px solid var(--border);
         background: Canvas;
         white-space: pre-wrap;
         overflow-wrap: anywhere;
-        font-size: 1rem;
-        line-height: 1.45;
+        font-size: 0.92rem;
+        line-height: 1.35;
       }
       .chat-message.user .chat-bubble {
         background: color-mix(in srgb, var(--accent) 14%, Canvas);
@@ -672,12 +676,15 @@
       }
       .chat-composer {
         padding: 0.8rem;
+        position: sticky;
+        bottom: 0;
+        z-index: 1;
         border-top: 1px solid var(--border);
         background: linear-gradient(to top, color-mix(in srgb, Canvas 96%, CanvasText 4%), color-mix(in srgb, Canvas 100%, CanvasText 0%));
       }
       .chat-form {
         display: grid;
-        gap: 0.75rem;
+        gap: 0.5rem;
       }
       .chat-input-row {
         display: flex;
@@ -767,6 +774,9 @@
         .performance-filter-actions { justify-self: start; }
       }
       @media (max-width: 520px) {
+        .chat-layout { height: calc(100dvh - 9rem); min-height: 24rem; }
+        .chat-input-row { gap: 0.4rem; }
+        .chat-composer { padding: 0.55rem; }
         .performance-filter-form { grid-template-columns: 1fr; }
       }
     </style>

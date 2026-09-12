@@ -173,6 +173,59 @@ def test_ai_settings_form_uses_optional_api_key_field() -> None:
     assert form.fields["api_key"].required is False
     assert "optional" in form.fields["api_key"].help_text.lower()
     assert form.fields["api_key"].widget.input_type == "password"
+    assert "clear_api_key" in form.fields
+
+
+@pytest.mark.django_db
+def test_ai_settings_blank_api_key_submission_preserves_saved_key(client) -> None:
+    settings = AIIntegrationSettings.objects.create(enabled=True, api_key="stored-key")
+    response = client.post(
+        "/settings/ai/",
+        data={
+            "action": "save",
+            "enabled": "on",
+            "provider_name": settings.provider_name,
+            "api_base_url": settings.api_base_url,
+            "api_key": "",
+            "model_name": settings.model_name,
+            "temperature": settings.temperature,
+            "max_output_tokens": settings.max_output_tokens,
+        },
+    )
+    assert response.status_code == 302
+    settings.refresh_from_db()
+    assert settings.api_key == "stored-key"
+
+
+@pytest.mark.django_db
+def test_ai_settings_explicit_clear_removes_saved_key(client) -> None:
+    settings = AIIntegrationSettings.objects.create(enabled=True, api_key="stored-key")
+    response = client.post(
+        "/settings/ai/",
+        data={
+            "action": "save",
+            "enabled": "on",
+            "provider_name": settings.provider_name,
+            "api_base_url": settings.api_base_url,
+            "api_key": "",
+            "clear_api_key": "on",
+            "model_name": settings.model_name,
+            "temperature": settings.temperature,
+            "max_output_tokens": settings.max_output_tokens,
+        },
+    )
+    assert response.status_code == 302
+    settings.refresh_from_db()
+    assert settings.api_key == ""
+
+
+@pytest.mark.django_db
+def test_ai_settings_saved_key_is_never_rendered_on_reload(client) -> None:
+    settings = AIIntegrationSettings.objects.create(enabled=True, api_key="configured-test-key")
+    response = client.get("/settings/ai/")
+    assert response.status_code == 200
+    assert "configured-test-key" not in response.content.decode()
+    assert settings.api_key == "configured-test-key"
 
 
 def test_http_helpers_omit_authorization_for_blank_key(monkeypatch) -> None:

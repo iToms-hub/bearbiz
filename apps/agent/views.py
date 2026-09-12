@@ -27,11 +27,17 @@ def agent_chat(request: HttpRequest) -> HttpResponse:
     ai_settings = AIIntegrationSettings.current()
     if request.method == "POST":
         payload = _request_json(request)
+        if payload.get("action") == "new_chat":
+            request.session.pop(CHAT_HISTORY_SESSION_KEY, None)
+            request.session.modified = True
+            return JsonResponse({"ok": True})
         message = str(payload.get("message", "")).strip()
         if not message:
             return JsonResponse({"ok": False, "error": "Message is required."}, status=400)
 
-        history = _load_history(request)
+        history = payload.get("history", [])
+        if not isinstance(history, list):
+            history = []
         context = build_bearbiz_chat_context(limit=4)
         result = chat_about_bearbiz(message, history=history, settings=ai_settings, data_context=context)
         if not result.ok:
@@ -45,13 +51,6 @@ def agent_chat(request: HttpRequest) -> HttpResponse:
                 status=400,
             )
 
-        history.extend(
-            [
-                {"role": "user", "content": message},
-                {"role": "assistant", "content": result.reply},
-            ]
-        )
-        _save_history(request, history)
         return JsonResponse(
             {
                 "ok": True,
@@ -62,39 +61,18 @@ def agent_chat(request: HttpRequest) -> HttpResponse:
             }
         )
 
-    history = _load_history(request)
     context = shell_context(
         section="agent",
         page_title="Agent",
         subtitle="Chat with Bearbiz’s AI about reports, uploads, and trends.",
         chat_enabled=ai_settings.enabled,
-        chat_messages=history,
+        chat_messages=[],
         chat_prompts=CHAT_PROMPTS,
         chat_welcome=WELCOME_MESSAGE,
         chat_context_summary=_context_summary(build_bearbiz_chat_context(limit=4)),
         ai_settings=ai_settings,
     )
     return render(request, "agent/chat.html", context)
-
-
-def _load_history(request: HttpRequest) -> list[dict[str, str]]:
-    history = request.session.get(CHAT_HISTORY_SESSION_KEY, [])
-    if not isinstance(history, list):
-        return []
-    messages: list[dict[str, str]] = []
-    for item in history[-12:]:
-        if not isinstance(item, dict):
-            continue
-        role = str(item.get("role", "")).strip()
-        content = str(item.get("content", "")).strip()
-        if role in {"user", "assistant"} and content:
-            messages.append({"role": role, "content": content})
-    return messages
-
-
-def _save_history(request: HttpRequest, history: list[dict[str, str]]) -> None:
-    request.session[CHAT_HISTORY_SESSION_KEY] = history[-12:]
-    request.session.modified = True
 
 
 def _request_json(request: HttpRequest) -> dict[str, Any]:

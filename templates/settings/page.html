@@ -113,6 +113,10 @@
           {% if form.api_key.errors %}<span class="error">{{ form.api_key.errors|striptags }}</span>{% endif %}
         </div>
         <div>
+          <label for="{{ form.clear_api_key.id_for_label }}">{{ form.clear_api_key }} {{ form.clear_api_key.label }}</label>
+          <small class="muted">Check this only when you want to remove the saved key.</small>
+        </div>
+        <div>
           <label for="{{ form.model_name.id_for_label }}">Model name</label>
           {{ form.model_name }}
           {% if form.model_name.errors %}<span class="error">{{ form.model_name.errors|striptags }}</span>{% endif %}

@@ -67,9 +67,13 @@ def test_agent_page_and_chat_use_bearbiz_data(client: Client, tmp_path: Path, mo
     response = client.get(reverse("agent:index"))
     assert response.status_code == 200
     html = response.content.decode()
-    assert "Agent" in html
+    assert html.count("<h1>Agent</h1>") == 1
+    assert "<h2>Agent</h2>" not in html
     assert "Ask Bearbiz anything" in html
     assert "AI connected" in html
+    assert "overflow: auto" in html
+    assert "position: sticky" in html
+    assert "data-new-chat" in html
     assert "event.key === 'Enter'" in html
     assert "requestSubmit()" in html
 
@@ -96,5 +100,24 @@ def test_agent_page_and_chat_use_bearbiz_data(client: Client, tmp_path: Path, mo
 
     followup_response = client.get(reverse("agent:index"))
     followup_html = followup_response.content.decode()
-    assert "What is the latest sales trend?" in followup_html
-    assert "The latest weekly sales trend is healthy." in followup_html
+    assert "What is the latest sales trend?" not in followup_html
+    assert "The latest weekly sales trend is healthy." not in followup_html
+
+
+@pytest.mark.django_db()
+def test_new_chat_clears_legacy_session_history_without_deleting_data(client: Client) -> None:
+    AIIntegrationSettings.objects.create(enabled=False)
+    session = client.session
+    session["bearbiz.agent.chat_history"] = [{"role": "user", "content": "old"}]
+    session.save()
+
+    response = client.post(
+        reverse("agent:index"),
+        data=json.dumps({"action": "new_chat"}),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    assert "bearbiz.agent.chat_history" not in client.session
+    assert "Ask Bearbiz anything" in client.get(reverse("agent:index")).content.decode()

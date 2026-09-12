@@ -4,7 +4,6 @@
   <section class="chat-layout">
     <div class="chat-header">
       <div>
-        <h2>Agent</h2>
         <p class="muted">Chat with Bearbiz’s AI about sales, uploads, and trends.</p>
       </div>
       <div class="chat-status {% if chat_enabled %}is-online{% else %}is-offline{% endif %}">
@@ -59,6 +58,7 @@
             {% for prompt in chat_prompts %}
               <button type="button" class="chat-prompt" data-chat-prompt>{{ prompt }}</button>
             {% endfor %}
+            <button type="button" class="chat-new" data-new-chat>New chat</button>
           </div>
         </form>
       </div>
@@ -70,7 +70,11 @@
       const form = document.querySelector('[data-chat-form]');
       const input = document.querySelector('[data-chat-input]');
       const thread = document.querySelector('[data-chat-thread]');
+      const newChat = document.querySelector('[data-new-chat]');
       if (!form || !input || !thread) return;
+
+      let conversationHistory = [];
+      const emptyState = thread.querySelector('.chat-empty')?.outerHTML || '';
 
       const csrfToken = document.cookie
         .split('; ')
@@ -109,10 +113,24 @@
         thread.appendChild(article);
       };
 
-      document.querySelectorAll('[data-chat-prompt]').forEach((button) => {
-        button.addEventListener('click', () => {
+      document.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-chat-prompt]');
+        if (button) {
           input.value = button.textContent.trim();
           input.focus();
+        }
+      });
+
+      newChat?.addEventListener('click', async () => {
+        conversationHistory = [];
+        input.value = '';
+        thread.innerHTML = emptyState;
+        scrollToBottom();
+        input.focus();
+        await fetch(window.location.pathname, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest'},
+          body: JSON.stringify({ action: 'new_chat' }),
         });
       });
 
@@ -133,7 +151,7 @@
             'X-CSRFToken': csrfToken,
             'X-Requested-With': 'XMLHttpRequest',
           },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({ message, history: conversationHistory }),
         });
 
         const data = await response.json().catch(() => ({}));
@@ -144,6 +162,7 @@
         }
 
         appendMessage('assistant', data.reply);
+        conversationHistory.push({ role: 'user', content: message }, { role: 'assistant', content: data.reply });
         scrollToBottom();
       });
 

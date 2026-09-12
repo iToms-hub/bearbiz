@@ -21,6 +21,7 @@ class FiscalYearSettingsForm(forms.ModelForm):
 
 class AIIntegrationSettingsForm(forms.ModelForm):
     model_name = forms.ChoiceField(choices=(), widget=forms.Select())
+    clear_api_key = forms.BooleanField(required=False, label="Clear saved API key")
 
     class Meta:
         model = AIIntegrationSettings
@@ -66,3 +67,9 @@ class AIIntegrationSettingsForm(forms.ModelForm):
         if current_value and current_value not in {value for value, _ in choices}:
             choices.insert(0, (current_value, current_value))
         return choices or [("", "No models returned by the endpoint")]
+
+    def clean_api_key(self) -> str:
+        submitted_key = self.cleaned_data.get("api_key", "").strip()
+        if self.data.get("clear_api_key"):
+            return ""
+        return submitted_key or str(self.instance.api_key or "")
