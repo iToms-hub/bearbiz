@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import io
+import json
 from email.message import Message
 from datetime import date
 from types import SimpleNamespace
@@ -10,7 +11,7 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, override_settings
 
-from apps.core.ai import AIAnalysisResult, build_bearbiz_chat_context
+from apps.core.ai import AIAnalysisResult, CHAT_DATA_CONTEXT_MAX_CHARS, build_bearbiz_chat_context
 from apps.core.forms import AIIntegrationSettingsForm
 from apps.core.models import AIIntegrationSettings
 from apps.reports.models import BonusClubSummary, GiftCardsSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
@@ -519,5 +520,63 @@ def test_ai_http_error_detail_uses_backend_message() -> None:
     exc = HTTPError("http://example.com", 400, "Bad Request", hdrs=Message(), fp=payload)
 
     assert _http_error_detail(exc) == "No models loaded. Please load a model first."
+
+
+@pytest.mark.django_db
+def test_question_context_selects_gift_cards_and_excludes_unrelated_data() -> None:
+    upload = ReportUpload.objects.create(
+        source_file=None, source_name="gc.pdf", parse_status="parsed", report_type="gift_cards"
+    )
+    GiftCardsSummary.objects.create(
+        report_upload=upload, fiscal_year=2026, fiscal_week=5,
+        fiscal_period_start=date(2026, 2, 1), fiscal_period_end=date(2026, 2, 7),
+        raw_json={"associate_rows": [{"name": "Mindy Montejano", "associate_number": "7", "metrics": {"total_transactions": 75, "gc_bonus_transactions": 16, "missed_opportunities": 2}}], "store_total": {"name": "Store Sales", "metrics": {}}},
+    )
+    other = ReportUpload.objects.create(
+        source_file=None, source_name="ranking.pdf", parse_status="parsed", report_type="ranking"
+    )
+    RankingSummary.objects.create(report_upload=other, fiscal_year=2026, fiscal_week=5, fiscal_period_end=date(2026, 2, 7), raw_json={"store_rows": [{"secret_detail": "unrelated"}]})
+
+    context = build_bearbiz_chat_context(question="Show Mindy Montejano's Gift Cards results for February")
+    serialized = json.dumps(context, default=str)
+    assert context["deterministic_query"]["status"] == "ok"
+    assert context["deterministic_query"]["matches"][0]["metrics"]["gc_bonus_transactions"] == 16
+    assert {record["report_type"] for record in context["report_details"]} == {"gift_cards"}
+    assert "dashboard" not in context
+    assert "unrelated" not in serialized
+    assert len(serialized) <= CHAT_DATA_CONTEXT_MAX_CHARS
+
+
+@pytest.mark.django_db
+def test_question_context_keeps_bounded_bonus_club_trend_rows() -> None:
+    for week in range(1, 9):
+        upload = ReportUpload.objects.create(
+            source_file=None, source_name=f"bonus-{week}.pdf", parse_status="parsed", report_type="bonus_club"
+        )
+        BonusClubSummary.objects.create(
+            report_upload=upload, fiscal_year=2026, fiscal_week=week, fiscal_period_end=date(2026, 1, week),
+            raw_json={"store_total": {"name": "Store Sales", "metrics": {"total_transactions": 100 + week, "transactions_with_club": 50 + week}}, "associate_rows": []},
+        )
+    context = build_bearbiz_chat_context(question="Show the Bonus Club 8 week trend")
+    query = context["deterministic_query"]
+    assert query["type"] == "bonus_club_8_week_trend"
+    assert query["week_count"] == 8
+    assert len(query["weeks"]) == 8
+    assert len(json.dumps(context, default=str)) <= CHAT_DATA_CONTEXT_MAX_CHARS
+
+
+@pytest.mark.django_db
+def test_general_question_context_omits_detailed_rows_and_dashboard() -> None:
+    upload = ReportUpload.objects.create(
+        source_file=None, source_name="sales.pdf", parse_status="parsed", report_type="weekly_sales"
+    )
+    WeeklySalesSummary.objects.create(
+        report_upload=upload, fiscal_year=2026, fiscal_week=1, fiscal_period_end=date(2026, 2, 7),
+        raw_json={"summary_kpis": {"total_sales": 123}, "summary_rows": [{"private": "detail"}]},
+    )
+    context = build_bearbiz_chat_context(question="What should I watch next?")
+    assert "report_details" not in context
+    assert "dashboard" not in context
+    assert "private" not in json.dumps(context, default=str)
 
 

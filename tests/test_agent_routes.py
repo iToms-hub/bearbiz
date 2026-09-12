@@ -10,6 +10,7 @@ from django.test import Client, override_settings
 from django.urls import reverse
 
 from apps.core.models import AIIntegrationSettings
+from apps.core.ai import CHAT_DATA_CONTEXT_MAX_CHARS
 from apps.reports.models import ReportUpload, WeeklySalesSummary
 
 
@@ -96,6 +97,8 @@ def test_agent_page_and_chat_use_bearbiz_data(client: Client, tmp_path: Path, mo
     assert "Bearbiz data context" in messages[0]["content"]
     assert "20366" in messages[0]["content"]
     assert "week-1-sales.pdf" in messages[0]["content"]
+    assert len(messages[0]["content"]) <= CHAT_DATA_CONTEXT_MAX_CHARS + 2_000
+    assert "test-only-secret" not in json.dumps(body)
     assert messages[-1]["content"] == "What is the latest sales trend?"
 
     followup_response = client.get(reverse("agent:index"))

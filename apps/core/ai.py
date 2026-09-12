@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from datetime import date
 import json
+import re
 
 from typing import Any, Mapping, Sequence
 from urllib import error, request
@@ -11,6 +12,9 @@ from urllib import error, request
 from .models import AIIntegrationSettings
 from apps.reports.dashboard import build_six_week_dashboard
 from apps.reports.models import BonusClubSummary, GiftCardsSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+
+CHAT_DATA_CONTEXT_MAX_CHARS = 20_000
+CHAT_HISTORY_MAX_CHARS = 3_000
 
 
 @dataclass(slots=True)
@@ -162,7 +166,8 @@ def chat_about_bearbiz(
     api_key = config.api_key
 
     context = dict(data_context or build_bearbiz_chat_context())
-    conversation = _sanitize_chat_history(history or [])
+    context_json = json.dumps(context, ensure_ascii=False, indent=2, default=_json_default)
+    conversation = _sanitize_chat_history(history or [], max_chars=CHAT_HISTORY_MAX_CHARS)
     prompt = [
         config.system_prompt.strip(),
         "",
@@ -173,7 +178,7 @@ def chat_about_bearbiz(
         "Keep the response concise, practical, and easy to act on.",
         "",
         "Bearbiz data context (read only):",
-        json.dumps(context, ensure_ascii=False, indent=2, default=_json_default),
+        context_json,
     ]
     messages: list[dict[str, str]] = [{"role": "system", "content": "\n".join(prompt)}]
     messages.extend(conversation)
@@ -464,13 +469,60 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
         ],
         "dashboard": dashboard,
     }
-    # Keep the normal context compact, but retain exact rows for questions that
-    # need deterministic lookup/aggregation rather than model arithmetic.
-    context["report_details"] = report_records[: max(1, min(limit, 12))]
     if question:
+        relevant_types = _question_report_types(question)
+        relevant_records = [record for record in report_records if record.get("report_type") in relevant_types]
+        overview_records = relevant_records if relevant_types else report_records[:limit]
+        context = {
+            "report_count": len(report_records) if not relevant_types else len(relevant_records),
+            "latest_report": _compact_chat_report_record(overview_records[0]) if overview_records else None,
+            "recent_reports": [_compact_chat_report_record(record) for record in overview_records[:limit]],
+        }
+        if relevant_records:
+            context["report_details"] = relevant_records[: max(1, min(limit, 12))]
         context["deterministic_query"] = _build_deterministic_query(
             question, gift_cards_summaries, bonus_club_summaries
         )
+        return _fit_chat_context(context)
+    context["recent_reports"] = context["recent_reports"][:limit]
+    context.pop("report_details", None)
+    context.pop("dashboard", None)
+    return context
+
+
+def _question_report_types(question: str) -> set[str]:
+    lowered = question.casefold()
+    types: set[str] = set()
+    if "gift" in lowered or " gc" in f" {lowered}":
+        types.add("gift_cards")
+    if "bonus" in lowered and "club" in lowered:
+        types.add("bonus_club")
+    if "weekly" in lowered or "sales" in lowered or "trend" in lowered:
+        types.add("weekly_sales")
+    if "ranking" in lowered or "rank" in lowered:
+        types.add("ranking")
+    if "segment" in lowered or "manager" in lowered:
+        types.add("segments")
+    return types
+
+
+def _fit_chat_context(context: dict[str, Any]) -> dict[str, Any]:
+    while len(json.dumps(context, ensure_ascii=False, default=_json_default)) > CHAT_DATA_CONTEXT_MAX_CHARS:
+        details = context.get("report_details")
+        if not isinstance(details, list) or not details:
+            break
+        changed = False
+        for record in details:
+            for key in ("associate_rows", "manager_rows", "store_rows", "summary_rows"):
+                rows = record.get(key) if isinstance(record, dict) else None
+                if isinstance(rows, list) and len(rows) > 1:
+                    record[key] = rows[:-1]
+                    changed = True
+                    break
+            if changed:
+                break
+        if not changed:
+            context.pop("report_details", None)
     return context
 
 
@@ -478,11 +530,9 @@ def _build_deterministic_query(question: str, gift_cards: list[Any], bonus_club:
     """Return labeled, exact data for common report questions."""
     lowered = question.lower()
     if "gift" in lowered and ("card" in lowered or "gc" in lowered):
-        names = [part.strip(" ,?.!:'\"’‘") for part in question.split() if len(part.strip(" ,?.!:'\"’‘")) > 1]
-        # Names are matched only against persisted rows; no fuzzy guessing.
-        rows: list[dict[str, Any]] = []
+        names = [str(row.get("name") or "").strip() for summary in gift_cards for row in ((summary.raw_json or {}).get("associate_rows", []) if isinstance(summary.raw_json, Mapping) else []) if isinstance(row, Mapping)]
         latest = max((s.fiscal_period_end for s in gift_cards if s.fiscal_period_end), default=None)
-        month = (latest.year, latest.month) if latest else None
+        month = _requested_month(question, latest)
         candidates: dict[str, dict[str, Any]] = {}
         for summary in gift_cards:
             if month and (not summary.fiscal_period_end or (summary.fiscal_period_end.year, summary.fiscal_period_end.month) != month):
@@ -501,10 +551,10 @@ def _build_deterministic_query(question: str, gift_cards: list[Any], bonus_club:
                     if value is not None:
                         out[metric] = out.get(metric, 0) + value
                 out["weeks"] = out.get("weeks", 0) + 1
-        requested = [c for c in candidates.values() if any(n.lower() == str(c["name"]).lower() or n.lower() in {p.lower() for p in str(c["name"]).split()} for n in names)]
+        requested = [c for c in candidates.values() if _name_in_question(str(c["name"]), question)]
         if len(requested) == 1:
-            return {"type": "gift_cards_month", "timeframe": f"{latest.year}-{latest.month:02d}" if latest else None, "matches": requested, "status": "ok"}
-        return {"type": "gift_cards_month", "timeframe": f"{latest.year}-{latest.month:02d}" if latest else None, "matches": requested, "candidate_names": [c["name"] for c in candidates.values()], "status": "ambiguous_or_missing"}
+            return {"type": "gift_cards_month", "timeframe": f"{month[0]}-{month[1]:02d}" if month else None, "matches": requested, "status": "ok"}
+        return {"type": "gift_cards_month", "timeframe": f"{month[0]}-{month[1]:02d}" if month else None, "matches": requested, "candidate_names": [c["name"] for c in candidates.values()], "status": "ambiguous_or_missing"}
     if "bonus" in lowered and "club" in lowered and ("trend" in lowered or "week" in lowered):
         ordered = sorted(bonus_club, key=lambda s: (s.fiscal_period_end or date.min, s.fiscal_year, s.fiscal_week))[-8:]
         weekly = []
@@ -519,6 +569,22 @@ def _build_deterministic_query(question: str, gift_cards: list[Any], bonus_club:
     return {"type": "general", "status": "use_report_details"}
 
 
+def _name_in_question(name: str, question: str) -> bool:
+    parts = [part for part in re.split(r"[^a-z0-9]+", name.casefold()) if part]
+    question_parts = set(part for part in re.split(r"[^a-z0-9]+", question.casefold()) if part)
+    return bool(parts) and set(parts) <= question_parts
+
+
+def _requested_month(question: str, latest: date | None) -> tuple[int, int] | None:
+    if latest is None:
+        return None
+    months = {name.casefold(): number for number, name in enumerate(("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), 1)}
+    match = re.search(r"\b(" + "|".join(months) + r")\b(?:\s+(20\d{2}))?", question, re.IGNORECASE)
+    if not match:
+        return (latest.year, latest.month)
+    return (int(match.group(2) or latest.year), months[match.group(1).casefold()])
+
+
 def _number(value: Any) -> float | None:
     try:
         return float(value) if value not in (None, "") else None
@@ -526,14 +592,20 @@ def _number(value: Any) -> float | None:
         return None
 
 
-def _sanitize_chat_history(history: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:
+def _sanitize_chat_history(history: Sequence[Mapping[str, Any]], *, max_chars: int = CHAT_HISTORY_MAX_CHARS) -> list[dict[str, str]]:
     messages: list[dict[str, str]] = []
+    used = 0
     for item in list(history)[-12:]:
         role = str(item.get("role", "")).strip()
         content = str(item.get("content", "")).strip()
         if role not in {"user", "assistant"} or not content:
             continue
+        remaining = max_chars - used
+        if remaining <= 0:
+            break
+        content = content[:remaining]
         messages.append({"role": role, "content": content})
+        used += len(content)
     return messages
 
 
