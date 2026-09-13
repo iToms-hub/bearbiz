@@ -34,7 +34,7 @@ def set_remote_version(monkeypatch: pytest.MonkeyPatch, value: bytes | Exception
 
 
 def test_newer_remote_version_adds_update_before_pinned_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    set_remote_version(monkeypatch, b"0.10.0\n")
+    set_remote_version(monkeypatch, b"10.0.0\n")
 
     items = navigation.left_nav("dashboard")
 
@@ -112,7 +112,7 @@ def test_malformed_or_unreachable_remote_version_fails_closed(
 def test_sidebar_update_markup_is_accessible_and_collapsed_compatible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    set_remote_version(monkeypatch, b"1.0.0")
+    set_remote_version(monkeypatch, b"10.0.0")
     client = Client()
 
     response = client.get(reverse("dashboard"))
@@ -120,7 +120,7 @@ def test_sidebar_update_markup_is_accessible_and_collapsed_compatible(
     assert response.status_code == 200
     html = response.content.decode()
     assert "nav-update" in html
-    assert 'title="Update available: Bearbiz 1.0.0"' in html
+    assert 'title="Update available: Bearbiz 10.0.0"' in html
     assert "https://github.com/iToms-hub/bearbiz/releases/latest" in html
     assert html.index("Update available") < html.index("Settings")
     assert ".sidebar .nav-bottom" in (Path(navigation.__file__).parents[2] / "templates" / "base.html").read_text()
@@ -204,7 +204,7 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
 def test_sidebar_toggle_follows_agent_and_lower_items_stay_ordered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    set_remote_version(monkeypatch, b"1.0.0")
+    set_remote_version(monkeypatch, b"10.0.0")
     client = Client()
     response = client.get(reverse("dashboard"))
 

@@ -1,12 +1,11 @@
 services:
   web:
-    image: "ghcr.io/itoms-hub/bearbiz:${BEARBIZ_IMAGE_TAG:-0.9.8.1}"
+    image: "ghcr.io/itoms-hub/bearbiz:9.9.9"
     command: sh -c "python manage.py migrate --noinput && gunicorn bearbiz.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3}"
     environment:
       SECRET_KEY: "${SECRET_KEY:?Set SECRET_KEY in the Portainer stack environment}"
       DEBUG: "${DEBUG:-0}"
       ALLOWED_HOSTS: "${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in the Portainer stack environment}"
-      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-${ALLOWED_HOSTS}}"
       CSRF_TRUSTED_ORIGINS: "${CSRF_TRUSTED_ORIGINS:?Set CSRF_TRUSTED_ORIGINS in the Portainer stack environment}"
       DJANGO_SETTINGS_MODULE: bearbiz.settings
       POSTGRES_DB: "${POSTGRES_DB:-bearbiz}"

@@ -3,7 +3,7 @@
 Bearbiz is a BI platform for weekly report uploads, PDF extraction, dashboards,
 and printable/exportable sales reporting.
 
-Current version: 0.9.8.1
+Current version: 9.9.9
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ before opening the UI:
 
 ```bash
 curl --fail http://localhost:8002/health/
-# Expected shape: {"status":"ok","version":"0.9.8.1"}
+# Expected shape: {"status":"ok","version":"9.9.9"}
 ```
 
 Open `http://localhost:8002/admin/` for the admin site. The Compose web
@@ -87,7 +87,7 @@ container restart to hide migration failures.
 ## Portainer Community Edition deployment
 
 The CE stack is a portable image-based deployment. It pulls the pinned
-`ghcr.io/itoms-hub/bearbiz:0.9.8.1` image by default; it does not build from a
+`ghcr.io/itoms-hub/bearbiz:9.9.9` image by default; it does not build from a
 checkout, use host bind paths, mount the Docker socket, or reference an
 external `env_file`. The web container runs migrations before Gunicorn starts,
 waits for PostgreSQL health, persists data in the explicitly named Docker
@@ -106,27 +106,23 @@ Compose path:         compose.portainer.yml
 
 The repository is public, so leave repository authentication off and TLS
 verification on. In the stack editor's **Environment variables** table, add the
-environment rows below, or upload a private `stack.env` file through Portainer;
-set these values. Never commit the file or paste real secrets into Git:
+four required rows below, or upload a private `stack.env` file through Portainer.
+The remaining rows are optional overrides with safe defaults. Never commit the
+file or paste real secrets into Git:
 
 ```text
 SECRET_KEY            <long-random-private-value>
 POSTGRES_PASSWORD     <strong-private-password>
 ALLOWED_HOSTS         localhost,127.0.0.1,<deployment-host>
-DJANGO_ALLOWED_HOSTS  localhost,127.0.0.1,<deployment-host>
 CSRF_TRUSTED_ORIGINS  https://bearbiz.itoms.org
-DEBUG                 0
-POSTGRES_DB           bearbiz
-POSTGRES_USER         bearbiz
-BACKUP_OWNER_UID      1000
-BACKUP_OWNER_GID      1000
-BEARBIZ_IMAGE_TAG     0.9.8.1
-GUNICORN_WORKERS      3
 ```
 
-`BEARBIZ_IMAGE_TAG` is optional; omit it to use `0.9.8.1`. The stack sets
-`POSTGRES_HOST=db` and the internal backup paths itself. Add any reverse-proxy
-hostname to both allowed-host variables, and add its full `https://` origin to
+Optional overrides: `DEBUG=0`, `POSTGRES_DB=bearbiz`, `POSTGRES_USER=bearbiz`,
+`BACKUP_OWNER_UID=1000`, `BACKUP_OWNER_GID=1000`, and `GUNICORN_WORKERS=3`.
+
+The stack pins image release `9.9.9`, sets `POSTGRES_HOST=db`, and the internal
+backup paths itself. Add any reverse-proxy
+hostname to `ALLOWED_HOSTS`, and add its full `https://` origin to
 `CSRF_TRUSTED_ORIGINS` explicitly, for example
 `https://bearbiz.itoms.org`. Add any additional public origins as comma-separated
 full URLs. Remove blank placeholder rows before deploying.
@@ -137,9 +133,8 @@ unauthenticated Portainer/Docker pull. If the package remains private, configure
 Portainer's registry credentials for `ghcr.io` with a read-only package token;
 do not put that token in the compose file or Git. The workflow publishes on
 `main` as `latest` plus an immutable SHA tag, and on version tags such as
-`v0.9.8.1` as `0.9.8.1` (plus safe semver tags and SHA). Deploy a version tag for
-repeatable releases; advance `BEARBIZ_IMAGE_TAG` only after verifying a backup
-and the new image.
+`v9.9.9` as `9.9.9` (plus safe semver tags and SHA). Deploy the verified version tag from the compose file for repeatable releases;
+change that tag only after verifying a backup and the new image.
 
 The named volumes survive stack updates. The backup volume is local to the
 deployment host, not an off-host disaster-recovery copy; configure a separate
@@ -149,6 +144,20 @@ compose.portainer.yml down -v` or delete a Portainer volume during a routine
 upgrade. Before updating, verify a database-plus-media backup; redeploy, allow
 migrations to finish, then verify container health and `GET /health/` at
 `http://<deployment-host>:8002/`.
+
+### Preflight diagnostics and rollback
+
+From a checked-out copy of the public repository, set the same environment rows
+used by the stack and run `scripts/portainer-preflight.sh`. It performs separate
+Compose parsing, image pull, startup, PostgreSQL/migration, and HTTP healthcheck
+gates. A failed gate names the phase and prints the safe `ps`/`logs` command;
+the script never removes containers or volumes. Do not run `down -v`.
+
+For a rollback, first verify the previous image tag still exists in GHCR,
+intentionally edit the `image:` tag in `compose.portainer.yml` to that tag, and
+redeploy the stack. Confirm
+`docker compose ps`, migration logs, `/health/`, and the three named volumes.
+Keep the failed release's containers and logs until the cause is recorded.
 
 ## What Bearbiz does
 

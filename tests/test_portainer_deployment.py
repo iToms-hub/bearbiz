@@ -7,7 +7,8 @@ ROOT = Path(__file__).parents[1]
 def test_portainer_stack_uses_portable_image_and_persistent_volumes() -> None:
     compose = (ROOT / "compose.portainer.yml").read_text()
 
-    assert 'image: "ghcr.io/itoms-hub/bearbiz:${BEARBIZ_IMAGE_TAG:-0.9.8.1}"' in compose
+    assert 'image: "ghcr.io/itoms-hub/bearbiz:9.9.9"' in compose
+    assert "ghcr.io/itoms-hub/bearbiz:${" not in compose
     assert "build:" not in compose
     assert "- .:/app" not in compose
     assert "SECRET_KEY: \"${SECRET_KEY:?" in compose
@@ -33,6 +34,7 @@ def test_portainer_stack_uses_portable_image_and_persistent_volumes() -> None:
     assert "name: bearbiz_postgres" in compose
     assert "name: bearbiz_media" in compose
     assert "name: bearbiz_backups" in compose
+    assert "${ALLOWED_HOSTS}}" not in compose
 
 
 def test_portainer_workflow_publishes_safe_ghcr_tags() -> None:
@@ -43,6 +45,9 @@ def test_portainer_workflow_publishes_safe_ghcr_tags() -> None:
     assert "type=semver" in workflow
     assert "type=sha" in workflow
     assert "type=raw,value=latest,enable={{is_default_branch}}" in workflow
+    assert 'tags: ["v*"]' in workflow
+    assert "Verify release tag metadata" in workflow
+    assert "expected=\"ghcr.io/${GITHUB_REPOSITORY}:${RELEASE_TAG#v}\"" in workflow
     assert "password:" in workflow
     assert "SECRET_KEY" not in workflow
 
@@ -58,7 +63,6 @@ def test_portainer_instructions_use_ui_variables() -> None:
         "SECRET_KEY",
         "POSTGRES_PASSWORD",
         "ALLOWED_HOSTS",
-        "DJANGO_ALLOWED_HOSTS",
         "CSRF_TRUSTED_ORIGINS",
         "DEBUG",
         "POSTGRES_DB",
@@ -69,9 +73,17 @@ def test_portainer_instructions_use_ui_variables() -> None:
         assert variable in readme
 
     reference = (ROOT / "docs/portainer-deployment.md").read_text()
-    assert "ghcr.io/itoms-hub/bearbiz:0.9.8.1" in reference
+    assert "ghcr.io/itoms-hub/bearbiz:9.9.9" in reference
     assert "stack.env" in reference
     assert "Packages" in reference
+    assert "intentionally edit the `image:`" in reference
+
+    preflight = ROOT / "scripts/portainer-preflight.sh"
+    assert preflight.is_file()
+    preflight_text = preflight.read_text()
+    assert "config --quiet" in preflight_text
+    assert "pull web db" in preflight_text
+    assert "down -v" not in preflight_text
 
 
 def test_docker_image_copies_runtime_files_not_source_mount() -> None:
