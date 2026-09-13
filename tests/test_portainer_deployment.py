@@ -47,7 +47,7 @@ def test_portainer_workflow_publishes_safe_ghcr_tags() -> None:
     assert "type=raw,value=latest,enable={{is_default_branch}}" in workflow
     assert 'tags: ["v*"]' in workflow
     assert "Verify release tag metadata" in workflow
-    assert "expected=\"ghcr.io/${GITHUB_REPOSITORY}:${RELEASE_TAG#v}\"" in workflow
+    assert "expected=\"ghcr.io/${GITHUB_REPOSITORY,,}:${RELEASE_TAG#v}\"" in workflow
     assert "password:" in workflow
     assert "SECRET_KEY" not in workflow
 

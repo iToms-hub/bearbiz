@@ -46,7 +46,7 @@ jobs:
             echo "Unsupported release tag: $RELEASE_TAG (expected vMAJOR.MINOR.PATCH)" >&2
             exit 1
           fi
-          expected="ghcr.io/${GITHUB_REPOSITORY}:${RELEASE_TAG#v}"
+          expected="ghcr.io/${GITHUB_REPOSITORY,,}:${RELEASE_TAG#v}"
           printf '%s\n' "$IMAGE_TAGS" | grep -Fx "$expected"
 
       - name: Set up Docker Buildx
