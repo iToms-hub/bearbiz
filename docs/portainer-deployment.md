@@ -13,7 +13,7 @@ Create a Portainer stack from the public repository:
 - Compose path: `compose.portainer.yml`
 - Repository authentication: off; TLS verification: on
 
-The stack uses the verified release image `ghcr.io/itoms-hub/bearbiz:9.9.9`.
+The stack uses the verified release image `ghcr.io/itoms-hub/bearbiz:0.9.9`.
 It uses explicit Docker volumes named
 `bearbiz_postgres`, `bearbiz_media`, and `bearbiz_backups`, exposes `8002:8000`,
 waits for the PostgreSQL healthcheck, runs migrations before Gunicorn, and
@@ -52,7 +52,7 @@ credentials using a read-only package token; never put the token in Compose or
 
 The checked-in workflow publishes with `GITHUB_TOKEN` and no application
 secrets. Pushes to `main` publish `latest` and an immutable SHA tag. version
-version tags such as `v9.9.9` publish `9.9.9`, `9.9`, `9`, and a SHA tag. The compose
+version tags such as `v0.9.9` publish `0.9.9`, `9.9`, `9`, and a SHA tag. The compose
 file pins the verified release tag. Never use `down -v` during an update.
 
 The stack's `bearbiz_backups` volume is local to the deployment host and is not
