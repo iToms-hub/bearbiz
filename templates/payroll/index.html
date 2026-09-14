@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Payroll{% endblock %}
+{% block content %}
+<section class="panel stack">
+  <h2>Payroll</h2>
+  <p class="muted">Weekly payroll tracker and source-faithful monthly labor planning.</p>
+  <div class="report-toolbar payroll-toolbar">
+    <form method="get" class="inline-actions report-filter-form payroll-filter-form">
+      <label>Month <select name="month"><option value="">All</option><option value="1" {% if selected_month == '1' %}selected{% endif %}>January</option><option value="2" {% if selected_month == '2' %}selected{% endif %}>February</option><option value="3" {% if selected_month == '3' %}selected{% endif %}>March</option><option value="4" {% if selected_month == '4' %}selected{% endif %}>April</option><option value="5" {% if selected_month == '5' %}selected{% endif %}>May</option><option value="6" {% if selected_month == '6' %}selected{% endif %}>June</option><option value="7" {% if selected_month == '7' %}selected{% endif %}>July</option><option value="8" {% if selected_month == '8' %}selected{% endif %}>August</option><option value="9" {% if selected_month == '9' %}selected{% endif %}>September</option><option value="10" {% if selected_month == '10' %}selected{% endif %}>October</option><option value="11" {% if selected_month == '11' %}selected{% endif %}>November</option><option value="12" {% if selected_month == '12' %}selected{% endif %}>December</option></select></label>
+      <label>Quarter <select name="quarter"><option value="" {% if not selected_quarter %}selected{% endif %}>All</option><option value="1" {% if selected_quarter == '1' %}selected{% endif %}>Q1</option><option value="2" {% if selected_quarter == '2' %}selected{% endif %}>Q2</option><option value="3" {% if selected_quarter == '3' %}selected{% endif %}>Q3</option><option value="4" {% if selected_quarter == '4' %}selected{% endif %}>Q4</option></select></label>
+      <label>Year <input name="year" value="{{ selected_year }}" inputmode="numeric"></label>
+      <button class="page-action primary" type="submit">Apply</button>
+    </form>
+    <a class="page-action upload-action" href="{{ upload_page_url }}">Upload</a>
+  </div>
+</section>
+<section class="panel">
+  <h2>Weekly tracker</h2>
+  {% if payroll_rows %}<div class="table-wrap"><table class="report-grid payroll-grid striped"><thead><tr>{% for column in payroll_columns %}<th>{{ column }}</th>{% endfor %}</tr></thead><tbody>{% for row in payroll_rows %}<tr class="{{ row.row_class|default:'' }}">{% for value in row.values %}<td{% if row.current_percent_class and forloop.counter0 == payroll_current_index %} class="{{ row.current_percent_class }}"{% endif %}>{{ value|default_if_none:"" }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">No payroll data yet.</p>{% endif %}
+</section>
+{% endblock %}

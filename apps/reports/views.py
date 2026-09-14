@@ -24,7 +24,10 @@ from apps.core.navigation import report_date_tabs, report_tabs, shell_context
 from .catalog import report_config, report_label, report_relation, report_slug
 from .fiscal import as_dict, calculate_fiscal_week
 from .forms import ReportUploadForm
-from .models import BonusClubSummary, GiftCardsSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from .models import BonusClubSummary, GiftCardsSummary, PayrollSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from .payroll_views import _latest as _latest_payroll_summaries
+from .payroll_views import _timeframe_totals as _payroll_timeframe_totals
+from .payroll_views import _week_ending_date
 from .modules.bonus_club import BonusClubReport
 from .modules.gift_cards import GiftCardsReport
 from .modules.ranking import RankingReport
@@ -42,6 +45,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     bonus_club_value = _dashboard_store_percentage(bonus_club_summary, "capture_rate")
     gift_cards_summary = _dashboard_latest_summary(GiftCardsSummary)
     gift_cards_value = _dashboard_store_percentage(gift_cards_summary, "bonus_percent")
+    payroll_values = _dashboard_payroll_percentages()
     summaries = _dashboard_weekly_sales_summaries(limit=6)
     dashboard_title = _dashboard_title(summaries)
     dashboard_headers = _weekly_report_headers()
@@ -60,6 +64,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         subtitle="Latest store performance and weekly sales reports.",
         bonus_club_value=bonus_club_value,
         gift_cards_value=gift_cards_value,
+        payroll_values=payroll_values,
         dashboard_headers=dashboard_headers,
         dashboard_rows=dashboard_rows,
         ranking_headers=ranking_headers,
@@ -74,6 +79,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
                 "dashboard": {
                     "bonus_club": {"value": bonus_club_value},
                     "gift_cards": {"value": gift_cards_value},
+                    "payroll": payroll_values,
                     "headers": dashboard_headers,
                     "rows": [
                         {
@@ -1941,6 +1947,65 @@ def _dashboard_store_percentage(summary: Any | None, metric_key: str) -> str:
     store_total = store_total_obj if isinstance(store_total_obj, dict) else {}
     metrics_obj = store_total.get("metrics") if isinstance(store_total.get("metrics"), dict) else {}
     return _format_percent(metrics_obj.get(metric_key))
+
+
+def _dashboard_payroll_percentages() -> dict[str, str]:
+    """Return latest-week and containing-fiscal-month Actual vs Earned."""
+    summaries = _latest_payroll_summaries()
+    if not summaries:
+        return {"last_week": "", "month": ""}
+    latest = summaries[0]
+    latest_date = latest.source_date
+    if latest_date is None:
+        return {"last_week": "", "month": ""}
+
+    def summary_rows(summary: PayrollSummary) -> list[dict[str, object]]:
+        rows = summary.rows if isinstance(summary.rows, list) else []
+        return [row for row in rows if isinstance(row, dict)]
+
+    dated_rows = [
+        (_week_ending_date(row.get("NOTES")), row)
+        for summary in summaries
+        for row in summary_rows(summary)
+    ]
+    latest_week_end = max((week_end for week_end, _ in dated_rows if week_end), default=None)
+
+    def ratio_percentage(items: list[PayrollSummary], week_end: object = None) -> str:
+        if week_end is None:
+            totals = _payroll_timeframe_totals(items)
+            actual_hours = totals["Total Hours Actual + Scheduled"]
+            target_hours = totals["Labor Calculator Target Hours"]
+            if target_hours == 0:
+                return ""
+            return f"{(actual_hours / target_hours) * 100:.1f}%"
+        actual_hours = 0.0
+        target_hours = 0.0
+        for summary in items:
+            rows = summary.rows if isinstance(summary.rows, list) else []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                if week_end is not None and _week_ending_date(row.get("NOTES")) != week_end:
+                    continue
+                actual = row.get("Total Hours Actual + Scheduled")
+                target = row.get("Labor Calculator Target Hours")
+                if isinstance(actual, (int, float)) and not isinstance(actual, bool):
+                    actual_hours += float(actual)
+                if isinstance(target, (int, float)) and not isinstance(target, bool):
+                    target_hours += float(target)
+        if target_hours == 0:
+            return ""
+        return f"{(actual_hours / target_hours) * 100:.1f}%"
+
+    month_summaries = [
+        summary for summary in summaries
+        if summary.source_date and summary.source_date.year == latest_date.year
+        and summary.source_date.month == latest_date.month
+    ]
+    return {
+        "last_week": ratio_percentage(summaries, latest_week_end),
+        "month": ratio_percentage(month_summaries),
+    }
 
 
 def _dashboard_ranking_summaries(limit: int = 4) -> list[RankingSummary]:

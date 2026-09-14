@@ -11,7 +11,7 @@ from urllib import error, request
 
 from .models import AIIntegrationSettings
 from apps.reports.dashboard import build_six_week_dashboard
-from apps.reports.models import BonusClubSummary, GiftCardsSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from apps.reports.models import BonusClubSummary, GiftCardsSummary, PartiesSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
 
 CHAT_DATA_CONTEXT_MAX_CHARS = 20_000
 CHAT_HISTORY_MAX_CHARS = 3_000
@@ -261,6 +261,9 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
     bonus_club_summaries = list(
         getattr(BonusClubSummary, "objects").select_related("report_upload").order_by("-fiscal_year", "-fiscal_week", "-id")[:limit]
     )
+    parties_summaries = list(
+        getattr(PartiesSummary, "objects").select_related("report_upload").order_by("-fiscal_year", "-fiscal_week", "-id")[:limit]
+    )
     uploads = list(getattr(ReportUpload, "objects").order_by("-uploaded_at", "-id")[:5])
     report_records: list[dict[str, Any]] = []
     latest_end: date | None = None
@@ -390,6 +393,24 @@ def build_bearbiz_chat_context(limit: int = 12, *, reference_date: date | None =
                     if isinstance(row, Mapping)
                 ],
                 "ai_summary": summary.ai_summary,
+            }
+        )
+
+    for summary in parties_summaries:
+        raw_json = summary.raw_json if isinstance(summary.raw_json, Mapping) else {}
+        rows = raw_json.get("rows") if isinstance(raw_json, Mapping) else None
+        party_rows = rows if isinstance(rows, list) else []
+        report_records.append(
+            {
+                "report_type": "parties",
+                "fiscal_year": summary.fiscal_year,
+                "fiscal_week": summary.fiscal_week,
+                "period_start": None,
+                "period_end": None,
+                "source_name": summary.report_upload.source_name,
+                "parse_status": summary.report_upload.parse_status,
+                "row_count": len(party_rows),
+                "party_rows": party_rows[:25],
             }
         )
 
@@ -658,7 +679,7 @@ def _post_json(url: str, payload: Mapping[str, Any], *, api_key: str) -> dict[st
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "bearbiz-ai/0.9.9",
+        "User-Agent": "bearbiz-ai/1.0.0",
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -682,7 +703,7 @@ def _post_json(url: str, payload: Mapping[str, Any], *, api_key: str) -> dict[st
 def _get_json(url: str, *, api_key: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
-        "User-Agent": "bearbiz-ai/0.9.9",
+        "User-Agent": "bearbiz-ai/1.0.0",
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"

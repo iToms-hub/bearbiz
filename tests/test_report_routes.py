@@ -14,7 +14,7 @@ import pytest
 from apps.core.ai import AIAnalysisResult
 from apps.core.models import AIIntegrationSettings
 from apps.core.models import FiscalYearSettings
-from apps.reports.models import BonusClubSummary, GiftCardsSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from apps.reports.models import BonusClubSummary, GiftCardsSummary, PayrollSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
 
 
 @pytest.fixture()
@@ -86,7 +86,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert 'class="upload-file-row"' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v0.9.9' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.0.0' in history_html
         assert "Uploaded reports" in history_html
         assert "Settings" in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
@@ -496,15 +496,69 @@ def test_dashboard_shows_last_week_store_bonus_club_and_gift_cards_metrics(clien
                 },
             )
 
+        payroll_upload = ReportUpload.objects.create(
+            source_file=SimpleUploadedFile("payroll-34.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf"),
+            source_name="payroll-34.pdf",
+            report_type="payroll",
+            parse_status="parsed",
+        )
+        older_payroll_upload = ReportUpload.objects.create(
+            source_file=SimpleUploadedFile("payroll-33.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf"),
+            source_name="payroll-33.pdf",
+            report_type="payroll",
+            parse_status="parsed",
+        )
+        PayrollSummary.objects.create(
+            report_upload=older_payroll_upload,
+            source_date=date(2026, 8, 16),
+            source_month=8,
+            source_week=33,
+            current_week=False,
+            rows=[{
+                "NOTES": "08/16/2026",
+                "Total Hours Actual + Scheduled": 100.0,
+                "Labor Calculator Target Hours": 100.0,
+            }],
+            monthly_summary={},
+            raw_json={"parse_version": 2},
+            parse_version=2,
+        )
+        PayrollSummary.objects.create(
+            report_upload=payroll_upload,
+            source_date=date(2026, 8, 23),
+            source_month=8,
+            source_week=34,
+            current_week=False,
+            rows=[{
+                "NOTES": "08/23/2026",
+                "Total Hours Actual + Scheduled": 95.0,
+                "Labor Calculator Target Hours": 100.0,
+            }],
+            monthly_summary={},
+            raw_json={"parse_version": 2},
+            parse_version=2,
+        )
+
         response = client.get(reverse("dashboard"))
 
     assert response.status_code == 200
     html = response.content.decode()
     assert "Bonus Club" in html
     assert "Gift Card Bonus" in html
+    assert "Payroll" in html
+    assert "Last Week:" in html
+    assert "Month:" in html
+    assert "95.0%" in html
+    assert "97.5%" in html
+    assert "dashboard-card-bonus" in html
+    assert "dashboard-card-gift" in html
+    assert "dashboard-payroll-last-week" in html
+    assert "dashboard-payroll-month" in html
+    assert "background: color-mix(in srgb, currentColor 9%, Canvas)" not in html
+    assert "border-top: 3px solid #0f766e" not in html
     assert "dashboard-split-grid" in html
     assert "dashboard-top-metrics" in html
-    assert "class=\"panel dashboard-card stack\"" in html
+    assert 'class="panel dashboard-card dashboard-card-bonus stack"' in html
     assert "08/23/26" not in html
     assert "08/16/26" not in html
     assert "Montejano, Mindy" not in html
@@ -1285,7 +1339,7 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         assert 'Select a PDF' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v0.9.9' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.0.0' in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
         assert 'aria-label="Section tabs"' not in history_html
 

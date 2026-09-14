@@ -6,6 +6,7 @@ class ReportsConfig(AppConfig):
     name = "apps.reports"
 
     def ready(self) -> None:
-        from .modules import load_builtin_reports
+        from .modules import load_builtin_reports, load_parties_report
 
         load_builtin_reports()
+        load_parties_report()

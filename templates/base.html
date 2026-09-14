@@ -245,6 +245,31 @@
         align-items: center;
         margin-left: auto;
       }
+      .payroll-toolbar {
+        align-items: flex-end;
+      }
+      .payroll-filter-form,
+      .payroll-upload-form {
+        align-items: flex-end;
+      }
+      .payroll-upload-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin-left: auto;
+      }
+      .payroll-file-label {
+        align-self: center;
+        margin: 0;
+        font-weight: 650;
+      }
+      .payroll-upload-form input[type="file"] {
+        min-width: 18rem;
+        max-width: 100%;
+      }
+      .payroll-toolbar .page-action {
+        align-self: flex-end;
+      }
       .report-toolbar .tab,
       .report-toolbar .page-action {
         padding: 0.42rem 0.7rem;
@@ -308,7 +333,7 @@
       .status-badge.warning { background: #a15c00; color: white; }
       .dashboard-split-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 1rem;
       }
       .dashboard-top-metrics {
@@ -328,6 +353,29 @@
         margin: 0;
         text-align: center;
       }
+      .dashboard-card-bonus .dashboard-metric-value { color: #b45309; }
+      .dashboard-card-gift .dashboard-metric-value { color: #7c3aed; }
+      .dashboard-payroll-values {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+      }
+      .dashboard-payroll-value {
+        display: grid;
+        gap: 0.2rem;
+        padding: 0.35rem 0.5rem;
+        border-radius: 0.65rem;
+      }
+      .dashboard-payroll-value span {
+        font-size: 0.85rem;
+        font-weight: 700;
+      }
+      .dashboard-payroll-value strong {
+        font-size: clamp(1.65rem, 4vw, 2.5rem);
+        line-height: 1;
+      }
+      .dashboard-payroll-last-week { color: #0f766e; }
+      .dashboard-payroll-month { color: #2563eb; }
       .dashboard-metric-value {
         font-size: clamp(2.25rem, 6vw, 4rem);
         font-weight: 800;
@@ -483,6 +531,18 @@
       .report-grid tbody tr.report-week-row-latest {
         background: color-mix(in srgb, #0a7a28 14%, Canvas);
         font-weight: 650;
+      }
+      .parties-grid tbody tr.report-month-total {
+        background: color-mix(in srgb, #0b7285 16%, Canvas);
+        font-weight: 650;
+      }
+      .parties-grid tbody tr.report-quarter-total {
+        background: color-mix(in srgb, #b26a00 19%, Canvas);
+        font-weight: 700;
+      }
+      .parties-grid tbody tr.report-year-total {
+        background: color-mix(in srgb, #6f42c1 22%, Canvas);
+        font-weight: 700;
       }
       .report-grid tbody tr.report-week-row-latest td:first-child {
         font-weight: 750;
@@ -724,6 +784,15 @@
       .success { color: #0a7a28; }
       button.success { background: #dff4e4; border-color: #0a7a28; color: #0a7a28; }
       button.error { background: #fbe3e3; border-color: #c00; color: #c00; }
+      .danger-action {
+        background: color-mix(in srgb, #c00 12%, Canvas);
+        border-color: color-mix(in srgb, #c00 48%, var(--border-strong));
+        color: #b00000;
+        font-weight: 650;
+      }
+      .payroll-percent-green { color: #16803c; font-weight: 700; }
+      .payroll-percent-blue { color: #1670c4; font-weight: 700; }
+      .payroll-percent-red { color: #c62828; font-weight: 700; }
       .site-footer {
         margin-top: 1rem;
         padding-top: 0.75rem;

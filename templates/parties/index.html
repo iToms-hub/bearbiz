@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Parties{% endblock %}
+{% block content %}
+<section class="panel stack">
+  <header class="section-header"><div><h2>Parties</h2><p class="muted">Weekly parties held and booked by fiscal month.</p></div><a class="page-action upload-action" href="{{ upload_page_url }}">Uploads</a></header>
+</section>
+<section class="panel">
+  <h2>Parties report</h2>
+  {% if parties_rows %}<div class="table-wrap"><table class="report-grid parties-grid striped"><thead><tr>{% for header in parties_headers %}<th>{{ header }}</th>{% endfor %}</tr></thead><tbody>{% for row in parties_rows %}<tr class="{{ row.row_class }}">{% for value in row.values %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">No parties data yet.</p>{% endif %}
+</section>
+{% endblock %}

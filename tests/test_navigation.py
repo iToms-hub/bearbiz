@@ -71,7 +71,7 @@ def test_primary_navigation_has_expected_routes_and_icon_mapping(monkeypatch: py
 @pytest.mark.django_db()
 @pytest.mark.parametrize(
     ("name", "feature"),
-    [("missed-ops", "Missed Ops"), ("payroll", "Payroll"), ("product", "Product"), ("parties", "Parties")],
+    [("missed-ops", "Missed Ops"), ("product", "Product")],
 )
 def test_coming_soon_pages_are_explicit_and_active(name: str, feature: str) -> None:
     response = Client().get(reverse(name))

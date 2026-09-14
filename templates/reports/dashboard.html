@@ -2,7 +2,7 @@
 {% block title %}Bearbiz dashboard{% endblock %}
 {% block content %}
   <div class="dashboard-split-grid dashboard-top-metrics">
-    <section class="panel dashboard-card stack">
+    <section class="panel dashboard-card dashboard-card-bonus stack">
       <h2>Bonus Club</h2>
       {% if bonus_club_value %}
         <div class="dashboard-metric-value">{{ bonus_club_value }}</div>
@@ -11,12 +11,30 @@
       {% endif %}
     </section>
 
-    <section class="panel dashboard-card stack">
+    <section class="panel dashboard-card dashboard-card-gift stack">
       <h2>Gift Card Bonus</h2>
       {% if gift_cards_value %}
         <div class="dashboard-metric-value">{{ gift_cards_value }}</div>
       {% else %}
         <div class="empty">No Gift Cards report has been wired in yet.</div>
+      {% endif %}
+    </section>
+
+    <section class="panel dashboard-card dashboard-card-payroll stack">
+      <h2>Payroll</h2>
+      {% if payroll_values.last_week or payroll_values.month %}
+        <div class="dashboard-payroll-values">
+          <div class="dashboard-payroll-value dashboard-payroll-last-week">
+            <span>Last Week:</span>
+            <strong>{{ payroll_values.last_week|default:"—" }}</strong>
+          </div>
+          <div class="dashboard-payroll-value dashboard-payroll-month">
+            <span>Month:</span>
+            <strong>{{ payroll_values.month|default:"—" }}</strong>
+          </div>
+        </div>
+      {% else %}
+        <div class="empty">No Payroll report has been uploaded yet.</div>
       {% endif %}
     </section>
   </div>

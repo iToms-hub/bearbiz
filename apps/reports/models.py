@@ -9,6 +9,7 @@ class ParseStatus(models.TextChoices):
     PENDING = "pending", "Pending"
     PARSED = "parsed", "Parsed"
     FAILED = "failed", "Failed"
+    CONFLICT = "conflict", "Conflict"
 
 
 def report_upload_path(instance: "ReportUpload", filename: str) -> str:
@@ -243,3 +244,51 @@ class SegmentsSummary(models.Model):
     @property
     def raw_data(self) -> Any:
         return self.raw_json
+
+
+class PayrollSummary(models.Model):
+    """Source-faithful weekly payroll tracker extracted from a PDF upload."""
+
+    report_upload = models.OneToOneField(
+        ReportUpload, on_delete=models.CASCADE, related_name="payroll_summary"
+    )
+    source_date = models.DateField(null=True, blank=True, db_index=True)
+    source_month = models.PositiveSmallIntegerField(null=True, blank=True)
+    source_week = models.PositiveSmallIntegerField(null=True, blank=True)
+    current_week = models.BooleanField(default=False)
+    rows = models.JSONField(default=list, blank=True)
+    monthly_summary = models.JSONField(default=dict, blank=True)
+    raw_json = models.JSONField(default=dict, blank=True)
+    parse_version = models.PositiveSmallIntegerField(default=1)
+    edited_rows = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-source_date", "-created_at", "-id"]
+        indexes = [models.Index(fields=["source_date", "-created_at"])]
+        verbose_name = "payroll summary"
+        verbose_name_plural = "payroll summaries"
+
+    def __str__(self) -> str:
+        label = self.source_date.isoformat() if self.source_date else "undated"
+        return f"Payroll {label}"
+
+
+class PartiesSummary(models.Model):
+    """Source-faithful weekly parties report, including raw metric cells."""
+
+    report_upload = models.OneToOneField(ReportUpload, on_delete=models.CASCADE, related_name="parties_summary")
+    fiscal_year = models.PositiveSmallIntegerField()
+    fiscal_week = models.PositiveSmallIntegerField()
+    rows = models.JSONField(default=list, blank=True)
+    raw_json = models.JSONField(default=dict, blank=True)
+    parse_version = models.PositiveSmallIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["fiscal_year", "fiscal_week", "id"]
+
+    def __str__(self) -> str:
+        return f"Parties FY{self.fiscal_year} W{self.fiscal_week:02d}"

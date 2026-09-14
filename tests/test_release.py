@@ -5,7 +5,7 @@ import bearbiz
 
 
 ROOT = Path(__file__).parents[1]
-RELEASE = "0.9.9"
+RELEASE = "1.0.0"
 
 
 def test_release_metadata_is_consistent() -> None:
