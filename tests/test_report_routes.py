@@ -86,7 +86,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert 'class="upload-file-row"' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.0.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.1.0' in history_html
         assert "Uploaded reports" in history_html
         assert "Settings" in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
@@ -166,7 +166,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         dashboard_html = dashboard_response.content.decode()
         assert "Open Report 1" not in dashboard_html
         assert "Overview" not in dashboard_html
-        assert "Uploads" not in dashboard_html
+        assert 'class="upload-reminder"' in dashboard_html
         assert "Week window" not in dashboard_html
         assert "Recent uploads" not in dashboard_html
         assert "week-1-sales.pdf" not in dashboard_html
@@ -242,6 +242,8 @@ def test_dashboard_shows_last_six_weekly_sales_rows_with_report_view_headers(cli
     assert "Target" in html
     assert "LY Traffic" not in html
     assert "Sales Tr" not in html
+    assert "STAR" not in html
+    assert WeeklySalesSummary.objects.filter(raw_json__summary_kpis__star=4.9).exists()
     assert "Cap Rate" not in html
     assert html.count('class="report-week-row"') == 5
     assert 'class="report-week-row report-week-row-latest"' in html
@@ -1339,7 +1341,7 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         assert 'Select a PDF' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.0.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.1.0' in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
         assert 'aria-label="Section tabs"' not in history_html
 
@@ -1669,7 +1671,7 @@ def test_report_pdf_action_is_the_only_export_for_all_report_types_and_preserves
         assert "window.print" not in html
         assert "print-action" not in html
         assert "PDF" in html
-        assert "Uploads" not in html if number == 6 else "Uploads" in html
+        assert 'class="upload-reminder"' in html
         assert "date_filter=range" in html
         assert "range_start=2026-02-01" in html
         assert "range_end=2026-02-28" in html

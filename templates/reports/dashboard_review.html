@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Last Week Review · Bearbiz{% endblock %}
+{% block content %}
+  <section class="panel stack">
+    <div class="template-toolbar">
+      <div>
+        <h2>Last Week Review</h2>
+        <p class="muted">{{ selected_review_template.name|default:"No review template selected" }}</p>
+      </div>
+      <div class="inline-form">
+        <label for="review-template-select">Template</label>
+        <select id="review-template-select" onchange="if (this.value) window.location=this.value">
+          {% for item in review_templates %}<option value="{% url 'dashboard-review' %}?template={{ item.id }}"{% if item.id == selected_review_template.id %} selected{% endif %}>{{ item.name }}</option>{% empty %}<option>No templates saved</option>{% endfor %}
+        </select>
+        {% if selected_review_template %}<a class="page-action primary" href="{% url 'dashboard-review-pdf' %}?template={{ selected_review_template.id }}">Download PDF</a>{% endif %}
+      </div>
+    </div>
+  </section>
+  {% if review_layout %}
+    <div class="review-layout">
+      {% for module in review_layout %}
+        <section class="panel stack review-module" data-review-module="{{ module.type }}">
+          <h2>{{ module.title }}</h2>
+          {% if module.type == 'notes' %}<form method="post" class="review-note-form" data-rich-note-form><input type="hidden" name="action" value="save-note"><input type="hidden" name="template_id" value="{{ selected_review_template.id }}"><input type="hidden" name="module_index" value="{{ forloop.counter0 }}">{% csrf_token %}<label for="review-note-title-{{ forloop.counter }}">Note title</label><input id="review-note-title-{{ forloop.counter }}" name="note_title" value="{{ module.title }}"><div class="rich-toolbar" aria-label="Note formatting"><button type="button" data-rich-command="bold"><strong>B</strong></button><button type="button" data-rich-command="italic"><em>I</em></button><button type="button" data-rich-command="insertUnorderedList">• List</button><button type="button" data-rich-command="insertOrderedList">1. List</button></div><div class="rich-editor" contenteditable="true" data-rich-editor aria-label="Note">{{ module.text|safe }}</div><textarea name="note_text" data-rich-value hidden></textarea><button type="submit">Save note</button></form>
+          {% elif module.type == 'bonus-gift-combined' %}<div class="review-combined-metrics"><div><span>Bonus Club</span><strong>{{ module.values.bonus_club|default:"—" }}</strong></div><div><span>Gift Card Bonus</span><strong>{{ module.values.gift_cards|default:"—" }}</strong></div></div>
+          {% elif module.type == 'bonus-club' or module.type == 'gift-card-bonus' %}<div class="dashboard-metric-value">{{ module.value|default:"No persisted data" }}</div>
+          {% elif module.type == 'payroll' %}<div class="review-payroll-metrics"><div><span>Actual Hours</span><strong>{{ module.values.actual_hours|default:"—" }}</strong></div><div><span>Target Hours</span><strong>{{ module.values.target_hours|default:"—" }}</strong></div><div><span>Hours +/-</span><strong>{{ module.values.variance_hours|default:"—" }}</strong></div></div>
+          {% elif module.type == 'parties' %}<p class="muted">{{ module.message }}</p>
+          {% else %}{% include "reports/review_table.html" with headers=module.headers rows=module.rows %}{% endif %}
+        </section>
+      {% endfor %}
+    </div>
+  {% else %}
+    <section class="panel stack"><h2>No template loaded</h2><p class="muted">Create a template in Settings → Templates, then return here to build the review.</p></section>
+  {% endif %}
+  <script>
+    document.querySelectorAll('[data-rich-note-form]').forEach((form) => {
+      const editor = form.querySelector('[data-rich-editor]');
+      const value = form.querySelector('[data-rich-value]');
+      form.querySelectorAll('[data-rich-command]').forEach((button) => button.addEventListener('click', () => {
+        editor.focus();
+        document.execCommand(button.dataset.richCommand, false);
+      }));
+      form.addEventListener('submit', () => { value.value = editor.innerHTML; });
+    });
+  </script>
+{% endblock %}

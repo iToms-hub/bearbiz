@@ -52,7 +52,7 @@ def test_primary_navigation_has_expected_routes_and_icon_mapping(monkeypatch: py
     items = navigation.left_nav("product")
 
     assert [(item["label"], item["url"], item["active"]) for item in items[:8]] == [
-        ("Dashboard", "/", False),
+        ("Dashboard", "/dashboard/last-week/", False),
         ("Reports", "/reports/", False),
         ("Performance", "/performance/", False),
         ("Missed Ops", "/missed-ops/", False),
@@ -66,6 +66,37 @@ def test_primary_navigation_has_expected_routes_and_icon_mapping(monkeypatch: py
         "bearbiz-missed-ops.png", "bearbiz-payroll.png", "bearbiz-product.png",
         "bearbiz-parties.png", "bearbiz-agent.png",
     ]
+
+
+@pytest.mark.django_db()
+def test_dashboard_subnav_routes_and_toggle_markup() -> None:
+    client = Client()
+
+    last_week = client.get(reverse("dashboard-last-week"))
+    assert last_week.status_code == 200
+    last_week_html = last_week.content.decode()
+    assert "Weekly Sales Reports" in last_week_html
+    assert 'href="/dashboard/last-week/"' in last_week_html
+    assert 'href="/dashboard/review/"' in last_week_html
+    assert 'data-sidebar-subnav-toggle' in last_week_html
+    assert 'aria-expanded="true"' in last_week_html
+
+    review = client.get(reverse("dashboard-review"))
+    assert review.status_code == 200
+    review_html = review.content.decode()
+    assert "Last Week Review" in review_html
+    assert "Arrange and save the review" in review_html
+    assert 'class="sidebar-subnav"' in review_html
+    assert 'aria-current="page">Review</span>' in review_html
+
+
+def test_dashboard_subnav_has_foldable_css_and_behavior() -> None:
+    base_template = Path(navigation.__file__).parents[2] / "templates" / "base.html"
+    template = base_template.read_text()
+
+    assert ".sidebar-subnav.is-collapsed { display: none; }" in template
+    assert "event.preventDefault();" in template
+    assert "subnav.classList.toggle('is-collapsed')" in template
 
 
 @pytest.mark.django_db()
@@ -145,7 +176,7 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert 'src="/static/images/bearbiz-performance.png"' in html
     assert 'src="/static/images/bearbiz-reports.png"' in html
     assert 'src="/static/images/bearbiz-parties.png"' in html
-    assert 'src="/static/images/bearbiz-agent.png"' in html
+    assert 'src="/static/images/bearbiz-agent.png"' not in html
     assert 'src="/static/images/bearbiz-settings.png"' in html
     assert 'src="/static/images/bearbiz-menu.png"' in html
     assert 'class="sidebar-toggle-icon"' in html
@@ -153,7 +184,7 @@ def test_sidebar_branding_uses_static_logos_and_preserves_collapsed_slot() -> No
     assert 'alt="Stitched performance chart icon"' in html
     assert 'alt="Stitched reports document icon"' in html
     assert 'alt="Stitched party popper icon"' in html
-    assert 'alt="Stitched Bearbiz agent headset icon"' in html
+    assert 'alt="Stitched Bearbiz agent headset icon"' not in html
     assert 'alt="Stitched settings gear icon"' in html
     base_template = Path(navigation.__file__).parents[2] / "templates" / "base.html"
     template = base_template.read_text()
@@ -211,8 +242,7 @@ def test_sidebar_toggle_follows_agent_and_lower_items_stay_ordered(
     assert response.status_code == 200
     html = response.content.decode()
     assert "<strong>Bearbiz</strong>" not in html
-    assert html.index('class="sidebar-primary"') < html.index('bearbiz-agent.png')
-    assert html.index('bearbiz-agent.png') < html.index('data-sidebar-toggle')
+    assert 'bearbiz-agent.png' not in html
     assert html.index('data-sidebar-toggle') < html.index("Update available")
     assert html.index("Update available") < html.index("Settings")
 

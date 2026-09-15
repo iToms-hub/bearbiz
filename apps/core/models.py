@@ -131,6 +131,22 @@ class FiscalYearSettings(models.Model):
         return fiscal_year, week_number
 
 
+class ReviewTemplate(models.Model):
+    """Saved, ordered module layout for a dashboard review report."""
+
+    name = models.CharField(max_length=120, unique=True)
+    subtitle = models.CharField(max_length=240, blank=True, default="")
+    layout = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self) -> str:
+        return str(self.name)
+
+
 class AIIntegrationSettings(models.Model):
     """Singleton configuration for report AI enrichment."""
 

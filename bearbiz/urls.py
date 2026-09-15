@@ -15,7 +15,13 @@ from apps.reports.parties_views import delete as parties_delete
 from apps.reports.parties_views import download as parties_download
 from apps.reports.parties_views import index as parties_index
 from apps.reports.parties_views import upload_page as parties_uploads
-from apps.reports.views import dashboard, performance, performance_pdf
+from apps.reports.views import (
+    dashboard,
+    dashboard_review,
+    dashboard_review_pdf,
+    performance,
+    performance_pdf,
+)
 
 
 def health(request):
@@ -24,6 +30,9 @@ def health(request):
 
 urlpatterns = [
     path("", dashboard, name="dashboard"),
+    path("dashboard/last-week/", dashboard, name="dashboard-last-week"),
+    path("dashboard/review/pdf/", dashboard_review_pdf, name="dashboard-review-pdf"),
+    path("dashboard/review/", dashboard_review, name="dashboard-review"),
     path("performance/", performance, name="performance"),
     path("performance/pdf/", performance_pdf, name="performance-pdf"),
     path("missed-ops/", coming_soon, {"feature": "Missed Ops"}, name="missed-ops"),

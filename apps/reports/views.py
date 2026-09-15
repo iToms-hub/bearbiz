@@ -12,6 +12,7 @@ from typing import Any, cast
 from django.conf import settings
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.safestring import mark_safe
@@ -19,6 +20,8 @@ from django.views.decorators.http import require_POST
 from weasyprint import HTML
 
 from apps.core.ai import summarize_weekly_sales_report
+from apps.core.models import ReviewTemplate
+from apps.core.views import sanitize_rich_text
 from apps.core.navigation import report_date_tabs, report_tabs, shell_context
 
 from .catalog import report_config, report_label, report_relation, report_slug
@@ -112,6 +115,83 @@ def dashboard(request: HttpRequest) -> HttpResponse:
             }
         )
     return render(request, "reports/dashboard.html", context)
+
+
+def dashboard_review(request: HttpRequest) -> HttpResponse:
+    """Render a saved weekly review template in its configured order."""
+    if request.method == "POST" and request.POST.get("action") == "save-note":
+        selected = ReviewTemplate.objects.filter(pk=request.POST.get("template_id")).first()
+        try:
+            module_index = int(request.POST.get("module_index", "-1"))
+        except ValueError:
+            module_index = -1
+        if selected and 0 <= module_index < len(selected.layout):
+            layout = list(selected.layout)
+            module = dict(layout[module_index])
+            if module.get("type") == "notes":
+                module["title"] = (request.POST.get("note_title") or "Notes").strip()[:120] or "Notes"
+                module["text"] = sanitize_rich_text(request.POST.get("note_text", ""))
+                layout[module_index] = module
+                selected.layout = layout
+                selected.save(update_fields=["layout", "updated_at"])
+        if selected:
+            return redirect(f"{reverse('dashboard-review')}?template={selected.pk}")
+
+    context = _dashboard_review_context(request)
+    return render(request, "reports/dashboard_review.html", context)
+
+
+def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
+    templates = list(ReviewTemplate.objects.all())
+    selected_id = request.GET.get("template")
+    selected = (
+        ReviewTemplate.objects.filter(pk=selected_id).first()
+        if selected_id
+        else (templates[0] if templates else None)
+    )
+    weekly = _dashboard_weekly_sales_summaries(limit=6)
+    ranking = _dashboard_ranking_summaries(limit=5)
+    segment = _dashboard_segment_summaries(limit=1)
+    module_data = {
+        "bonus-gift-combined": {"values": {
+            "bonus_club": _dashboard_store_percentage(_dashboard_latest_summary(BonusClubSummary), "capture_rate"),
+            "gift_cards": _dashboard_store_percentage(_dashboard_latest_summary(GiftCardsSummary), "bonus_percent"),
+        }},
+        "bonus-club": {"value": _dashboard_store_percentage(_dashboard_latest_summary(BonusClubSummary), "capture_rate")},
+        "gift-card-bonus": {"value": _dashboard_store_percentage(_dashboard_latest_summary(GiftCardsSummary), "bonus_percent")},
+        "weekly-sales-trend": {"headers": _weekly_report_headers(), "rows": _weekly_report_rows(weekly) + _dashboard_trend_rows(weekly)},
+        "segments": {"headers": _segments_report_headers(), "rows": _dashboard_segment_rows(segment)},
+        "payroll": {"values": _dashboard_payroll_hours()},
+        "parties": {"message": "No persisted Parties summary is available."},
+        "rankings": {"headers": _ranking_report_headers(), "rows": _ranking_report_rows(ranking)},
+    }
+    review_render_modules = []
+    for module in (selected.layout if selected else []):
+        if module.get("enabled", True) is False:
+            continue
+        review_render_modules.append({**module, **module_data.get(module.get("type"), {})})
+    review_week = weekly[-1].fiscal_week if weekly else calculate_fiscal_week(
+        _current_date() - timedelta(days=6), _current_date()
+    ).fiscal_week_number
+    return shell_context(
+        section="dashboard", active_dashboard_tab="review", page_title="Last Week Review",
+        eyebrow="Dashboard", subtitle="Arrange and save the review in Settings → Templates.",
+        review_templates=templates, selected_review_template=selected,
+        review_layout=review_render_modules, review_module_data=module_data,
+        report_pdf_title=f"Store 214 Review: Week {int(review_week):02d}",
+        report_pdf_subtitle=f"Business review for week {int(review_week):02d}",
+        report_pdf_logo_url=(Path(settings.STATICFILES_DIRS[0]) / "images" / "bearbiz-banner.png").as_uri(),
+    )
+
+
+def dashboard_review_pdf(request: HttpRequest) -> HttpResponse:
+    """Export only the selected review modules as a PDF attachment."""
+    context = _dashboard_review_context(request)
+    html = render_to_string("reports/dashboard_review_pdf.html", context, request=request)
+    pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
+    response = HttpResponse(pdf or b"", content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="Last Week Review.pdf"'
+    return response
 
 
 def performance(request: HttpRequest) -> HttpResponse:
@@ -2008,6 +2088,36 @@ def _dashboard_payroll_percentages() -> dict[str, str]:
     }
 
 
+def _dashboard_payroll_hours() -> dict[str, str]:
+    """Return latest-week actual, target, and variance hours for Review."""
+    summaries = _latest_payroll_summaries()
+    if not summaries:
+        return {"actual_hours": "", "target_hours": "", "variance_hours": ""}
+    dated_rows = [
+        (_week_ending_date(row.get("NOTES")), row)
+        for summary in summaries
+        for row in (summary.rows if isinstance(summary.rows, list) else [])
+        if isinstance(row, dict)
+    ]
+    latest_week_end = max((week_end for week_end, _ in dated_rows if week_end), default=None)
+    actual = 0.0
+    target = 0.0
+    for week_end, row in dated_rows:
+        if latest_week_end is not None and week_end != latest_week_end:
+            continue
+        actual_value = row.get("Total Hours Actual + Scheduled")
+        target_value = row.get("Labor Calculator Target Hours")
+        if isinstance(actual_value, (int, float)) and not isinstance(actual_value, bool):
+            actual += float(actual_value)
+        if isinstance(target_value, (int, float)) and not isinstance(target_value, bool):
+            target += float(target_value)
+    return {
+        "actual_hours": f"{actual:.1f}",
+        "target_hours": f"{target:.1f}",
+        "variance_hours": f"{actual - target:+.1f}",
+    }
+
+
 def _dashboard_ranking_summaries(limit: int = 4) -> list[RankingSummary]:
     summaries = list(
         getattr(RankingSummary, "objects")
@@ -2194,7 +2304,9 @@ _WEEKLY_METRICS = (
 
 _CURRENCY_METRICS = {"Sales", "LY Sales", "Target", "Ent Sales"}
 _PERCENT_METRICS = {"% Tgt", "Conv", "LY Conv", "% Δ LY Traf", "Cap Rate"}
-_REPORT_VIEW_HIDDEN_METRICS = {"LY Traffic", "Sales Tr", "Cap Rate"}
+# Keep these metrics in the persisted/raw payload, but omit them from the
+# compact report viewer and dashboard tables.
+_REPORT_VIEW_HIDDEN_METRICS = {"LY Traffic", "Sales Tr", "Cap Rate", "STAR"}
 
 
 _RANKING_VIEW_METRICS = (

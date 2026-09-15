@@ -1,6 +1,6 @@
 services:
   web:
-    image: "ghcr.io/itoms-hub/bearbiz:1.0.0"
+    image: "ghcr.io/itoms-hub/bearbiz:1.1.0"
     command: sh -c "python manage.py migrate --noinput && gunicorn bearbiz.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3}"
     environment:
       SECRET_KEY: "${SECRET_KEY:?Set SECRET_KEY in the Portainer stack environment}"

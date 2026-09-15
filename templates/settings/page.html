@@ -64,6 +64,68 @@
 
       <p class="muted theme-status" data-theme-status>Theme preference is saved in this browser.</p>
     </section>
+  {% elif section_slug == 'templates' %}
+    <section class="panel stack review-template-editor" data-template-editor>
+      <div class="template-toolbar">
+        <div>
+          <h3>Review templates</h3>
+          <p class="muted">Save reusable layouts for Dashboard → Review. Drag modules into the mock page, then reorder them.</p>
+        </div>
+        <form method="post" class="inline-form">
+          {% csrf_token %}<input type="hidden" name="action" value="create">
+          <input name="name" placeholder="New template name" aria-label="New template name" required>
+          <button type="submit">Create template</button>
+        </form>
+      </div>
+      {% if templates %}
+        <form method="post" data-template-form>
+          {% csrf_token %}<input type="hidden" name="action" value="save"><input type="hidden" name="template_id" value="{{ selected_template.id }}">
+          <div class="template-details">
+            <label for="review-template-subtitle">PDF subtitle</label>
+            <input id="review-template-subtitle" name="subtitle" value="{{ selected_template.subtitle }}" maxlength="240" placeholder="Optional subtitle shown under the PDF title">
+          </div>
+          <div class="template-editor-grid">
+            <aside class="template-module-library" aria-label="Available modules">
+              <h4>Modules</h4>
+              {% for slug, label in review_modules %}
+                <button type="button" class="template-module" draggable="true" data-module-type="{{ slug }}" data-module-title="{{ label }}">＋ {{ label }}</button>
+              {% endfor %}
+            </aside>
+            <section class="template-mock-page" aria-label="Review template preview">
+              <div class="template-mock-heading"><input name="name" value="{{ selected_template.name }}" aria-label="Template name"><span class="muted">Last Week Review</span></div>
+              <div class="template-dropzone" data-dropzone>
+                {% for module in selected_template.layout %}
+                  <article class="template-layout-module{% if module.enabled is False %} is-disabled{% endif %}" draggable="true" data-module-type="{{ module.type }}" data-module-title="{{ module.title }}" data-enabled="{{ module.enabled|default_if_none:'true'|lower }}">
+                    <span class="drag-handle" aria-hidden="true">⋮⋮</span><div><strong contenteditable="true" data-module-title-editor>{{ module.title }}</strong>{% if module.type == 'notes' %}<div class="rich-editor template-rich-editor" contenteditable="true" data-module-text aria-label="{{ module.title }}">{{ module.text|safe }}</div>{% else %}<p class="muted">Live {{ module.title }} data will render here.</p>{% endif %}</div><button type="button" data-toggle-module>{{ module.enabled|yesno:"Disable,Enable" }}</button><button type="button" class="template-remove" aria-label="Remove {{ module.title }}">×</button>
+                  </article>
+                {% empty %}<p class="muted template-empty">Drop modules here to build the review.</p>{% endfor %}
+              </div>
+            </section>
+          </div>
+          <input type="hidden" name="layout" data-layout-input>
+          <div class="template-actions"><button type="submit">Save template</button></div>
+        </form>
+        <div class="template-saved-list"><h4>Saved templates</h4>{% for item in templates %}<a class="tab{% if item.id == selected_template.id %} active{% endif %}" href="{% url 'settings:templates' %}?template={{ item.id }}">{{ item.name }}</a>{% endfor %}</div>
+        <form method="post" onsubmit="return confirm('Delete this template?');">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="template_id" value="{{ selected_template.id }}"><button type="submit" class="danger">Delete template</button></form>
+      {% else %}<p class="muted">No templates saved yet. Create one to begin.</p>{% endif %}
+    </section>
+    <script>
+      (() => {
+        const editor = document.querySelector('[data-template-editor]');
+        const zone = editor?.querySelector('[data-dropzone]');
+        const input = editor?.querySelector('[data-layout-input]');
+        if (!editor || !zone || !input) return;
+        let dragged;
+        const sync = () => { input.value = JSON.stringify([...zone.querySelectorAll('[data-module-type]')].map((el) => ({ type: el.dataset.moduleType, title: el.querySelector('[data-module-title-editor]')?.textContent.trim() || el.dataset.moduleTitle, enabled: el.dataset.enabled !== 'false', text: el.querySelector('[data-module-text]')?.innerHTML || '' }))); };
+        const remove = (event) => { const button = event.target.closest('.template-remove'); if (button) { button.closest('[data-module-type]')?.remove(); sync(); } };
+        editor.addEventListener('click', (event) => { remove(event); const toggle = event.target.closest('[data-toggle-module]'); const module = event.target.closest('[data-module-type]'); if (toggle && module) { const enabled = module.dataset.enabled !== 'false'; module.dataset.enabled = enabled ? 'false' : 'true'; module.classList.toggle('is-disabled', enabled); toggle.textContent = enabled ? 'Enable' : 'Disable'; sync(); } });
+        editor.querySelectorAll('.template-module').forEach((item) => item.addEventListener('dragstart', () => { dragged = item; }));
+        zone.addEventListener('dragstart', (event) => { dragged = event.target.closest('[data-module-type]'); if (dragged) event.dataTransfer.effectAllowed = 'move'; });
+        zone.addEventListener('dragover', (event) => event.preventDefault());
+        zone.addEventListener('drop', (event) => { event.preventDefault(); if (!dragged) return; if (dragged.classList.contains('template-module')) { const card = document.createElement('article'); card.className = 'template-layout-module'; card.draggable = true; card.dataset.moduleType = dragged.dataset.moduleType; card.dataset.moduleTitle = dragged.dataset.moduleTitle; card.dataset.enabled = 'true'; const editorHtml = dragged.dataset.moduleType === 'notes' ? `<div class="rich-editor template-rich-editor" contenteditable="true" data-module-text aria-label="${dragged.dataset.moduleTitle}"></div>` : `<p class="muted">Live ${dragged.dataset.moduleTitle} data will render here.</p>`; card.innerHTML = `<span class="drag-handle" aria-hidden="true">⋮⋮</span><div><strong contenteditable="true" data-module-title-editor>${dragged.dataset.moduleTitle}</strong>${editorHtml}</div><button type="button" data-toggle-module>Disable</button><button type="button" class="template-remove" aria-label="Remove ${dragged.dataset.moduleTitle}">×</button>`; zone.append(card); } else { const target = event.target.closest('[data-module-type]'); if (target && target !== dragged) zone.insertBefore(dragged, target); } sync(); });
+        editor.querySelector('[data-template-form]').addEventListener('submit', sync); sync();
+      })();
+    </script>
   {% elif section_slug == 'fiscal' %}
     <section class="panel">
       <h3>Fiscal year settings</h3>

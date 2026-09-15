@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from html import escape
+from html.parser import HTMLParser
 import os
 import re
 import fcntl
@@ -15,8 +17,41 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .ai import fetch_available_model_names as fetch_ai_model_suggestions, probe_ai_endpoint
 from .forms import AIIntegrationSettingsForm, FiscalYearSettingsForm
-from .models import AIIntegrationSettings, FiscalYearSettings
+from .models import AIIntegrationSettings, FiscalYearSettings, ReviewTemplate
 from .navigation import settings_tabs, shell_context
+
+
+class _RichTextSanitizer(HTMLParser):
+    """Allow the small, safe formatting set used by review notes."""
+
+    allowed_tags = {"p", "br", "strong", "em", "ul", "ol", "li", "a"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.output: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag not in self.allowed_tags:
+            return
+        if tag == "a":
+            href = dict(attrs).get("href", "") or ""
+            if href.startswith(("https://", "http://")):
+                self.output.append(f'<a href="{escape(href, quote=True)}">')
+                return
+        self.output.append(f"<{tag}>")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in self.allowed_tags:
+            self.output.append(f"</{tag}>")
+
+    def handle_data(self, data: str) -> None:
+        self.output.append(escape(data))
+
+
+def sanitize_rich_text(value: object) -> str:
+    parser = _RichTextSanitizer()
+    parser.feed(str(value or "")[:8000])
+    return "".join(parser.output)[:4000]
 
 
 def coming_soon(request: HttpRequest, feature: str) -> HttpResponse:
@@ -29,6 +64,73 @@ def coming_soon(request: HttpRequest, feature: str) -> HttpResponse:
         coming_soon_feature=feature,
     )
     return render(request, "coming_soon.html", context)
+
+
+REVIEW_MODULES = [
+    ("bonus-gift-combined", "Bonus Club & Gift Cards"),
+    ("weekly-sales-trend", "Weekly Sales Trend · Last 6 Weeks"),
+    ("segments", "Last Week Segments"),
+    ("payroll", "Last Week Payroll"),
+    ("parties", "Last Week Parties"),
+    ("rankings", "Rankings · Last 5 Weeks"),
+    ("notes", "Notes"),
+]
+
+LEGACY_REVIEW_MODULE_LABELS = {
+    "bonus-club": "Last Week Bonus Club",
+    "gift-card-bonus": "Last Week Gift Card Bonus",
+}
+
+
+def _default_review_layout() -> list[dict[str, str]]:
+    return [{"type": slug, "title": label} for slug, label in REVIEW_MODULES]
+
+
+def template_page(request: HttpRequest) -> HttpResponse:
+    templates = list(ReviewTemplate.objects.all())
+    selected_id = request.GET.get("template") or request.POST.get("template_id")
+    selected = (
+        ReviewTemplate.objects.filter(pk=selected_id).first()
+        if selected_id
+        else (templates[0] if templates else None)
+    )
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "create":
+            name = (request.POST.get("name") or "New Review Template").strip()[:120]
+            if name and not ReviewTemplate.objects.filter(name=name).exists():
+                selected = ReviewTemplate.objects.create(name=name, subtitle="", layout=_default_review_layout())
+        elif action == "save" and selected:
+            selected.name = (request.POST.get("name") or selected.name).strip()[:120]
+            selected.subtitle = (request.POST.get("subtitle") or "").strip()[:240]
+            try:
+                layout = json.loads(request.POST.get("layout", "[]"))
+            except json.JSONDecodeError:
+                layout = selected.layout
+            allowed = {slug for slug, _ in REVIEW_MODULES} | set(LEGACY_REVIEW_MODULE_LABELS)
+            labels = dict(REVIEW_MODULES) | LEGACY_REVIEW_MODULE_LABELS
+            selected.layout = [
+                {
+                    "type": item["type"],
+                    "title": str(item.get("title") or labels[item["type"]])[:120],
+                    "enabled": item.get("enabled", True) is not False,
+                    "text": sanitize_rich_text(item.get("text") or item.get("note") or ""),
+                }
+                for item in layout
+                if isinstance(item, dict) and item.get("type") in allowed
+            ]
+            selected.save()
+        elif action == "delete" and selected:
+            selected.delete()
+            selected = None
+        templates = list(ReviewTemplate.objects.all())
+        selected = selected or (templates[0] if templates else None)
+    context = shell_context(
+        section="settings", page_title="Settings", subtitle="Build reusable dashboard review layouts.",
+        top_tabs=settings_tabs("templates"), section_slug="templates", templates=templates,
+        selected_template=selected, review_modules=REVIEW_MODULES,
+    )
+    return render(request, "settings/page.html", context)
 
 
 def settings_page(request: HttpRequest, slug: str = "theme") -> HttpResponse:

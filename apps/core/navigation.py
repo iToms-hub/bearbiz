@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import threading
 import time
+from datetime import timedelta
 from urllib import error as url_error
 from urllib import request as url_request
 from typing import Any
@@ -26,13 +27,19 @@ _SEMVER_PATTERN = re.compile(
 )
 
 
-def left_nav(active_section: str, active_number: int | None = None) -> list[dict[str, Any]]:
+def left_nav(
+    active_section: str,
+    active_number: int | None = None,
+    active_dashboard_tab: str = "last-week",
+) -> list[dict[str, Any]]:
+    dashboard_active = active_section == "dashboard"
     reports_active = active_section == "reports"
     items: list[dict[str, Any]] = [
         {
             "label": "Dashboard",
-            "url": reverse("dashboard"),
-            "active": active_section == "dashboard",
+            "url": reverse("dashboard-last-week"),
+            "active": dashboard_active,
+            "children": dashboard_tabs(active_dashboard_tab) if dashboard_active else [],
             "icon_asset": "bearbiz-dashboard.png",
             "icon_alt": "Stitched Bearbiz house dashboard icon",
         },
@@ -83,6 +90,7 @@ def left_nav(active_section: str, active_number: int | None = None) -> list[dict
             "label": "Agent",
             "url": reverse("agent:index"),
             "active": active_section == "agent",
+            "visible": False,
             "icon_asset": "bearbiz-agent.png",
             "icon_alt": "Stitched Bearbiz agent headset icon",
         },
@@ -97,6 +105,36 @@ def left_nav(active_section: str, active_number: int | None = None) -> list[dict
             "css_class": "nav-bottom",
         })
     return items
+
+
+def report_upload_reminders() -> list[dict[str, Any]]:
+    """Return compact status lights for the latest completed report week."""
+    from django.utils import timezone
+
+    from apps.reports.models import (
+        BonusClubSummary,
+        GiftCardsSummary,
+        PayrollSummary,
+        RankingSummary,
+        SegmentsSummary,
+        WeeklySalesSummary,
+    )
+
+    today = timezone.localdate()
+    expected_week_end = today - timedelta(days=(today.weekday() - 5) % 7)
+    weekly_reports = (
+        ("Weekly Sales", WeeklySalesSummary, "fiscal_period_end"),
+        ("Ranking", RankingSummary, "fiscal_period_end"),
+        ("Segments", SegmentsSummary, "fiscal_period_end"),
+        ("Gift Cards", GiftCardsSummary, "fiscal_period_end"),
+        ("Bonus Club", BonusClubSummary, "fiscal_period_end"),
+        ("Payroll", PayrollSummary, "source_date"),
+    )
+    reminders: list[dict[str, Any]] = []
+    for label, model, date_field in weekly_reports:
+        present = model.objects.filter(**{f"{date_field}__gte": expected_week_end}).exists()
+        reminders.append({"label": label, "status": "green" if present else "red"})
+    return reminders
 
 
 def update_notification() -> dict[str, Any] | None:
@@ -181,17 +219,17 @@ def _is_newer_version(remote: str, installed: str) -> bool:
     return len(remote_pre) > len(installed_pre)
 
 
-def dashboard_tabs(active: str = "overview") -> list[dict[str, Any]]:
+def dashboard_tabs(active: str = "last-week") -> list[dict[str, Any]]:
     return [
         {
-            "label": "Overview",
-            "url": reverse("dashboard"),
-            "active": active == "overview",
+            "label": "Last Week",
+            "url": reverse("dashboard-last-week"),
+            "active": active == "last-week",
         },
         {
-            "label": "Uploads",
-            "url": reverse("reports:history"),
-            "active": active == "uploads",
+            "label": "Review",
+            "url": reverse("dashboard-review"),
+            "active": active == "review",
         },
     ]
 
@@ -277,6 +315,7 @@ def report_date_tabs(
 def settings_tabs(active: str) -> list[dict[str, Any]]:
     items = [
         ("theme", "Theme", reverse("settings:index")),
+        ("templates", "Templates", reverse("settings:templates")),
         ("fiscal", "Fiscal year", reverse("settings:fiscal")),
         ("ai", "AI integration", reverse("settings:ai")),
         ("backup", "Backup", reverse("settings:backup")),
@@ -292,6 +331,7 @@ def shell_context(
     section: str,
     page_title: str,
     active_number: int | None = None,
+    active_dashboard_tab: str = "last-week",
     top_tabs: list[dict[str, Any]] | None = None,
     primary_action: dict[str, str] | None = None,
     subtitle: str = "",
@@ -301,10 +341,11 @@ def shell_context(
         "section": section,
         "page_title": page_title,
         "page_subtitle": subtitle,
-        "left_nav": left_nav(section, active_number),
+        "left_nav": left_nav(section, active_number, active_dashboard_tab),
         "top_tabs": top_tabs or [],
         "primary_action": primary_action,
         "app_version": APP_VERSION,
+        "upload_reminders": report_upload_reminders(),
     }
     context.update(extra)
     return context
