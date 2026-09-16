@@ -448,9 +448,12 @@
         line-height: 1.15;
         color: var(--accent);
       }
+      .review-bonus-gift-table { overflow-x: auto; max-width: 100%; }
+      .review-bonus-gift-table table { min-width: 52rem; }
+      .review-above-store { background: color-mix(in srgb, #a7f3d0 65%, var(--card)); font-weight: 750; }
       .review-payroll-metrics {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 0.65rem;
         text-align: center;
       }
@@ -664,6 +667,16 @@
       .report-grid-associate tbody tr.report-summary-row {
         background: color-mix(in srgb, var(--accent) 14%, Canvas);
         font-weight: 650;
+      }
+      .report-grid-associate tbody tr.report-week-row-odd {
+        background: Canvas;
+      }
+      .report-grid-associate tbody tr.report-week-row-even {
+        background: color-mix(in srgb, CanvasText 7%, Canvas);
+      }
+      .report-grid-associate tbody tr.report-store-total-row {
+        background: color-mix(in srgb, #2563eb 18%, Canvas);
+        font-weight: 700;
       }
       .report-grid tbody tr.report-summary-trend,
       .report-grid-year tbody tr.report-summary-trend,

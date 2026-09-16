@@ -112,13 +112,22 @@ def test_performance_places_segment_before_summary_and_shows_range_trends(client
         bonus_upload_latest = _upload("bonus-latest.pdf", "bonus_club")
         BonusClubSummary.objects.create(report_upload=bonus_upload_latest, fiscal_year=2026, fiscal_week=31, fiscal_period_end=date(2026, 8, 9), raw_json=_bonus_payload(80, 32))
         segment_upload = _upload("segments.pdf", "segments")
-        SegmentsSummary.objects.create(report_upload=segment_upload, fiscal_year=2026, fiscal_week=31, fiscal_period_end=date(2026, 8, 9), raw_json={"manager_rows": [{"name": "Avery Bear", "metrics": {"success_pct": 50}}], "store_total": {}})
+        SegmentsSummary.objects.create(report_upload=segment_upload, fiscal_year=2026, fiscal_week=31, fiscal_period_end=date(2026, 8, 9), raw_json={"parse_version": 2, "manager_rows": [{"name": "Avery Bear", "metrics": {
+            "segment_count": 2, "segment_total_pct": 12.5, "success_segments": 1,
+            "success_pct": 50, "store_sales": 1234.5, "sales_trans": 10,
+            "conversion": 25.25, "dpt": 3.5, "upt": 1.25,
+        }}], "store_total": {}})
 
         html = client.get(reverse("performance"), {"date_filter": "range", "range_start": "2026-08-01", "range_end": "2026-08-10"}).content.decode()
 
     assert html.index("Segment Accountability") < html.index("data-performance-combined")
     assert "↑ 10.00 pts" in html
     assert "↑ 20.00 pts" in html
+    assert "50.00%" in html
+    assert "2.00" in html
+    assert "$1,234.50" in html
+    assert "25.25%" in html
+    assert "3.50" in html and "1.25" in html
 
 
 @pytest.mark.django_db()
@@ -140,7 +149,7 @@ def test_performance_matches_segment_name_case_and_whitespace_for_selected_dates
         html = response.content.decode()
 
     assert "<h2>Segment Accountability</h2>" in html
-    assert "50%" in html
+    assert "50.00%" in html
 
 
 @pytest.mark.django_db()
@@ -162,7 +171,7 @@ def test_performance_matches_reordered_segment_name_forms(client: Client, tmp_pa
         html = client.get(reverse("performance"), {"date_filter": "range", "range_start": "2026-08-09", "range_end": "2026-08-09"}).content.decode()
 
     assert "<h2>Segment Accountability</h2>" in html
-    assert "50%" in html
+    assert "50.00%" in html
 
 
 @pytest.mark.django_db()
@@ -262,6 +271,8 @@ def test_performance_trend_uses_selected_rates_and_first_week_store_series(clien
     assert "08/01/26 – 08/10/26" in html
     assert 'data-series-label="Store Gift Card Bonus %"' in html
     assert 'data-series-label="Store Bonus Club Capture %"' in html
+    assert "Segment Success %" not in html
+    assert "Store Segment Success %" not in html
     assert 'stroke="#dc2626"' in html
 
 
@@ -290,6 +301,7 @@ def test_performance_chart_uses_compact_legend_and_color_matched_point_labels() 
     assert 'class="chart-point-label" font-size="9" fill="#5b7cfa"' in svg
     assert 'class="chart-point-label" font-size="9" fill="#dc2626"' in svg
     assert svg.count('class="chart-point-label"') == 4
+    assert "Segment Success %" not in svg
 
 
 def test_performance_chart_consolidates_store_legend_and_keeps_desktop_items_on_one_row() -> None:
@@ -358,7 +370,7 @@ def test_performance_pdf_preserves_selection_and_is_portrait(client: Client, tmp
     assert "Bonus Club + Gift Cards" in pdf_text
     assert "Week ending" in pdf_text
     assert "Club capture %" in pdf_text
-    assert "Performance trend" in pdf_text
+    assert "Performance Trend" in pdf_text
     assert "Avery Bear" in pdf_text
     assert "08/01/26" in pdf_text
     assert "08/09/26" in pdf_text

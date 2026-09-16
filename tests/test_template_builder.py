@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from django.test import Client
 from django.urls import reverse
 
 from apps.core.models import ReviewTemplate
+
+
+ROOT = Path(__file__).parents[1]
 
 
 @pytest.mark.django_db()
@@ -61,10 +65,13 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     fitz = pytest.importorskip("fitz")
     pdf_text = "\n".join(page.get_text() for page in fitz.open(stream=pdf.content, filetype="pdf"))
     assert "Store 214 Review: Week " in pdf_text
-    assert "Business review for week " in pdf_text
+    assert "Last Weeks Performance Review" in pdf_text
     assert "Weekly Review Updated" not in pdf_text
     assert "For internal use only" in pdf_text
     assert "Page 1 of" in pdf_text
+    pdf_template = (ROOT / "templates/reports/dashboard_review_pdf.html").read_text()
+    assert "td.review-above-store" in pdf_template
+    assert ".payroll-metric { display: table-cell; width: 25%" in pdf_template
 
     deleted = client.post(reverse("settings:templates"), {"action": "delete", "template_id": str(template.pk)})
     assert deleted.status_code == 200

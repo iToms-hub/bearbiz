@@ -85,7 +85,7 @@ def test_dashboard_subnav_routes_and_toggle_markup() -> None:
     assert review.status_code == 200
     review_html = review.content.decode()
     assert "Last Week Review" in review_html
-    assert "Arrange and save the review" in review_html
+    assert "Last Weeks Performance Review" in review_html
     assert 'class="sidebar-subnav"' in review_html
     assert 'aria-current="page">Review</span>' in review_html
 

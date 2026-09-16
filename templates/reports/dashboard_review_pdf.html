@@ -20,7 +20,7 @@
     .metric-label { display: block; color: #4c5660; font-weight: bold; font-size: 9pt; }
     .metric-value { display: block; color: #1f516d; font-size: 18pt; font-weight: bold; margin-top: 0.04in; }
     .payroll-metrics { display: table; width: 100%; table-layout: fixed; border-spacing: 0.08in 0; }
-    .payroll-metric { display: table-cell; width: 33.333%; text-align: center; border: 1px solid #9ab4c5; background: #f0f7fb; border-radius: 5px; padding: 0.1in; }
+    .payroll-metric { display: table-cell; width: 25%; text-align: center; border: 1px solid #9ab4c5; background: #f0f7fb; border-radius: 5px; padding: 0.1in; }
     .payroll-label { display: block; color: #4c5660; font-weight: bold; font-size: 8pt; }
     .payroll-value { display: block; color: #1f516d; font-size: 15pt; font-weight: bold; margin-top: 0.03in; }
     .message { color: #5d6670; }
@@ -31,6 +31,7 @@
     tbody tr.report-summary-month { background: #e4f0ff; }
     tbody tr.report-summary-quarter { background: #dceaff; }
     tbody tr.report-summary-year, tbody tr.report-summary-trend { background: #d2e3ff; font-weight: bold; }
+    td.review-above-store { background: #d1fae5; font-weight: bold; }
     .pdf-footer { position: fixed; bottom: -0.48in; left: 0; right: 0; height: 0.36in; color: #555; font-size: 7pt; }
     .pdf-footer-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
     .pdf-footer-table td { width: 33.333%; padding: 0; border: 0; vertical-align: middle; white-space: nowrap; }
@@ -43,7 +44,7 @@
 </head>
 <body>
   <h1>{{ report_pdf_title }}</h1>
-  <p class="subtitle">{{ report_pdf_subtitle }}</p>
+  <p class="subtitle">Last Weeks Performance Review</p>
 
   {% for module in review_layout %}
     <section class="module">
@@ -51,11 +52,11 @@
       {% if module.type == 'notes' %}
         <div class="note">{{ module.text|safe|default:"No notes added." }}</div>
       {% elif module.type == 'bonus-gift-combined' %}
-        <div class="metrics"><div class="metric"><span class="metric-label">Bonus Club</span><span class="metric-value">{{ module.values.bonus_club|default:"—" }}</span></div><div class="metric"><span class="metric-label">Gift Card Bonus</span><span class="metric-value">{{ module.values.gift_cards|default:"—" }}</span></div></div>
+        <table class="report-grid striped"><thead><tr>{% for header in module.headers %}<th>{{ header }}</th>{% endfor %}</tr></thead><tbody>{% for row in module.rows %}<tr class="{{ row.row_class|default:'' }}">{% for value in row.values %}<td{% if forloop.counter0 == 3 and row.bonus_above_store or forloop.counter0 == 6 and row.gift_above_store %} class="review-above-store"{% endif %}>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
       {% elif module.type == 'bonus-club' or module.type == 'gift-card-bonus' %}
         <p>{{ module.value|default:"No persisted data" }}</p>
       {% elif module.type == 'payroll' %}
-        <div class="payroll-metrics"><div class="payroll-metric"><span class="payroll-label">Actual Hours</span><span class="payroll-value">{{ module.values.actual_hours|default:"—" }}</span></div><div class="payroll-metric"><span class="payroll-label">Target Hours</span><span class="payroll-value">{{ module.values.target_hours|default:"—" }}</span></div><div class="payroll-metric"><span class="payroll-label">Hours +/-</span><span class="payroll-value">{{ module.values.variance_hours|default:"—" }}</span></div></div>
+        <div class="payroll-metrics"><div class="payroll-metric"><span class="payroll-label">Actual Hours</span><span class="payroll-value">{{ module.values.actual_hours|default:"—" }}</span></div><div class="payroll-metric"><span class="payroll-label">Target Hours</span><span class="payroll-value">{{ module.values.target_hours|default:"—" }}</span></div><div class="payroll-metric"><span class="payroll-label">Hours +/-</span><span class="payroll-value">{{ module.values.variance_hours|default:"—" }}</span></div><div class="payroll-metric"><span class="payroll-label">Actual vs Earned</span><span class="payroll-value">{{ module.values.actual_vs_earned|default:"—" }}</span></div></div>
       {% elif module.type == 'parties' %}
         <p class="message">{{ module.message }}</p>
       {% else %}

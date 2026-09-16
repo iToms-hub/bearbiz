@@ -153,10 +153,7 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
     ranking = _dashboard_ranking_summaries(limit=5)
     segment = _dashboard_segment_summaries(limit=1)
     module_data = {
-        "bonus-gift-combined": {"values": {
-            "bonus_club": _dashboard_store_percentage(_dashboard_latest_summary(BonusClubSummary), "capture_rate"),
-            "gift_cards": _dashboard_store_percentage(_dashboard_latest_summary(GiftCardsSummary), "bonus_percent"),
-        }},
+        "bonus-gift-combined": _dashboard_bonus_gift_table(),
         "bonus-club": {"value": _dashboard_store_percentage(_dashboard_latest_summary(BonusClubSummary), "capture_rate")},
         "gift-card-bonus": {"value": _dashboard_store_percentage(_dashboard_latest_summary(GiftCardsSummary), "bonus_percent")},
         "weekly-sales-trend": {"headers": _weekly_report_headers(), "rows": _weekly_report_rows(weekly) + _dashboard_trend_rows(weekly)},
@@ -175,7 +172,7 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
     ).fiscal_week_number
     return shell_context(
         section="dashboard", active_dashboard_tab="review", page_title="Last Week Review",
-        eyebrow="Dashboard", subtitle="Arrange and save the review in Settings → Templates.",
+        eyebrow="Dashboard", subtitle="Last Weeks Performance Review",
         review_templates=templates, selected_review_template=selected,
         review_layout=review_render_modules, review_module_data=module_data,
         report_pdf_title=f"Store 214 Review: Week {int(review_week):02d}",
@@ -415,28 +412,12 @@ def _performance_chart_series(gift_cards: list[GiftCardsSummary], bonus_club: li
             store_value = _coerce_number(store_metrics.get(metric))
             if store_value is not None:
                 by_date.setdefault(summary.fiscal_period_end, {})[store_label] = store_value
-    for summary in segments:
-        if not summary.fiscal_period_end:
-            continue
-        raw = summary.raw_json if isinstance(summary.raw_json, dict) else {}
-        match = next((row for row in (raw.get("manager_rows") or []) if isinstance(row, dict) and _normalize_person_name(row.get("name")) == _normalize_person_name(selected_label)), None)
-        metrics = match.get("metrics") if isinstance(match, dict) and isinstance(match.get("metrics"), dict) else {}
-        value = _coerce_number(metrics.get("success_pct"))
-        if value is not None:
-            by_date.setdefault(summary.fiscal_period_end, {})["success_pct"] = value
-        store_total = raw.get("store_total")
-        store_metrics = store_total.get("metrics") if isinstance(store_total, dict) and isinstance(store_total.get("metrics"), dict) else {}
-        store_value = _coerce_number(store_metrics.get("success_pct"))
-        if store_value is not None:
-            by_date.setdefault(summary.fiscal_period_end, {})["Store Segment Success %"] = store_value
     labels = [period_end.strftime("%m/%d/%y") for period_end in sorted(by_date)]
     series_specs = [
         ("bonus_percent", "Gift Card Bonus %"),
         ("capture_rate", "Bonus Club Capture %"),
-        ("success_pct", "Segment Success %"),
         ("Store Gift Card Bonus %", "Store Gift Card Bonus %"),
         ("Store Bonus Club Capture %", "Store Bonus Club Capture %"),
-        ("Store Segment Success %", "Store Segment Success %"),
     ]
     return [{"label": label, "points": [by_date[period].get(key) for period in sorted(by_date)]} for key, label in series_specs if any(by_date[period].get(key) is not None for period in sorted(by_date))] + [{"labels": labels}]
 
@@ -592,11 +573,18 @@ def _report_context(request: HttpRequest, number: int) -> dict[str, Any]:
         report_range_end=report_date_state["range_end"],
         report_associate_options=report_date_state["associate_options"],
         report_associate_selected=report_date_state["selected_associate"],
+        report_show_associate_filter=False,
         report_date_state_year=report_date_state["year"],
         report_view_title=str(report.get("viewer_title", "Weekly report data")),
         report_view_note=str(report_date_state.get("note") or report.get("viewer_note", "Newest week first, with each week in its own row.")),
         report_table_class=report_date_state["table_class"],
         report_period_label=report_date_state["period_label"],
+        report_pdf_period_label=(
+            ""
+            if report_type in {"gift_cards", "bonus_club"}
+            and report_date_state["mode"] in {"month", "quarter", "range"}
+            else report_date_state["period_label"]
+        ),
         report_pdf_url=f'{reverse("reports:report-pdf", kwargs={"number": number})}?{request.META.get("QUERY_STRING", "")}' if request.META.get("QUERY_STRING") else reverse("reports:report-pdf", kwargs={"number": number}),
     )
     report_pdf_filename = _report_pdf_filename(report, request, context)
@@ -896,8 +884,97 @@ def _segments_report_rows(summaries: list[SegmentsSummary]) -> list[dict[str, ob
     return rows
 
 
-def _segments_range_report_headers() -> list[str]:
-    return _segments_report_headers()
+def _segments_range_report_headers(*, include_period: bool = True) -> list[str]:
+    return _segments_report_headers() if include_period else list(SegmentsReport._VISIBLE_HEADERS)
+
+
+def _segments_aggregate_report_rows(summaries: list[SegmentsSummary]) -> list[dict[str, object]]:
+    """Combine manager and store Segment metrics over a selected timeframe."""
+    managers: dict[str, dict[str, object]] = {}
+    store = {"name": "Store Total", "segment_count": 0.0, "success_segments": 0.0, "store_sales": 0.0, "sales_trans": 0.0}
+    for summary in summaries:
+        upload = cast(ReportUpload, summary.report_upload)
+        summary = _refresh_segments_summary_if_needed(upload, summary)
+        if summary is None:
+            continue
+        raw = summary.raw_json if isinstance(summary.raw_json, dict) else {}
+        manager_rows = raw.get("manager_rows") if isinstance(raw.get("manager_rows"), list) else []
+        for row in manager_rows:
+            if not isinstance(row, dict) or not isinstance(row.get("metrics"), dict):
+                continue
+            name = str(row.get("name") or "").strip()
+            key = _normalize_person_name(name)
+            if not key:
+                continue
+            group = managers.setdefault(key, {"name": name, "segment_count": 0.0, "success_segments": 0.0, "store_sales": 0.0, "sales_trans": 0.0, "summary": summary})
+            metrics = cast(dict[str, object], row["metrics"])
+            for metric in ("segment_count", "success_segments", "store_sales", "sales_trans"):
+                value = _coerce_number(metrics.get(metric))
+                if value is not None:
+                    group[metric] = float(group[metric]) + value
+            group["summary"] = summary
+        store_total = raw.get("store_total") if isinstance(raw.get("store_total"), dict) else {}
+        store_metrics = store_total.get("metrics") if isinstance(store_total.get("metrics"), dict) else {}
+        visible_values = store_total.get("visible_values") if isinstance(store_total.get("visible_values"), list) else []
+        visible_fallbacks = {
+            "segment_count": visible_values[0] if len(visible_values) > 0 else None,
+            "success_segments": visible_values[2] if len(visible_values) > 2 else None,
+            "store_sales": visible_values[4] if len(visible_values) > 4 else None,
+            "sales_trans": visible_values[5] if len(visible_values) > 5 else None,
+        }
+        if store_total.get("name"):
+            store["name"] = str(store_total["name"])
+        for metric in ("segment_count", "success_segments", "store_sales", "sales_trans"):
+            value = _coerce_number(store_metrics.get(metric, visible_fallbacks[metric]))
+            if value is not None:
+                store[metric] = float(store[metric]) + value
+    if not managers and not any(store[metric] for metric in ("segment_count", "success_segments", "store_sales", "sales_trans")):
+        return []
+    store_segment_count = float(store["segment_count"])
+    rows: list[dict[str, object]] = []
+    for group in managers.values():
+        segment_count = float(group["segment_count"])
+        sales_trans = float(group["sales_trans"])
+        store_sales = float(group["store_sales"])
+        success_segments = float(group["success_segments"])
+        rows.append({
+            "summary": group["summary"],
+            "row_kind": "manager",
+            "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 else 'report-week-row-odd'}",
+            "values": [
+                group["name"],
+                _format_segment_number(segment_count),
+                _format_segment_percent((segment_count / store_segment_count * 100) if store_segment_count else None),
+                _format_segment_number(success_segments),
+                _format_segment_percent((success_segments / segment_count * 100) if segment_count else None),
+                _format_segment_currency(store_sales),
+                _format_segment_number(sales_trans),
+                "",
+                _format_segment_number((store_sales / sales_trans) if sales_trans else None),
+                "",
+            ],
+        })
+    store_sales = float(store["store_sales"])
+    sales_trans = float(store["sales_trans"])
+    success_segments = float(store["success_segments"])
+    rows.append({
+        "summary": next(iter(managers.values()))["summary"] if managers else summaries[-1],
+        "row_kind": "store_total",
+        "row_class": "report-summary-row report-store-total-row",
+        "values": [
+            store["name"],
+            _format_segment_number(store_segment_count),
+            _format_segment_percent(100 if store_segment_count else None),
+            _format_segment_number(success_segments),
+            _format_segment_percent((success_segments / store_segment_count * 100) if store_segment_count else None),
+            _format_segment_currency(store_sales),
+            _format_segment_number(sales_trans),
+            "",
+            _format_segment_number((store_sales / sales_trans) if sales_trans else None),
+            "",
+        ],
+    })
+    return rows
 
 
 def _segments_range_report_rows(summaries: list[SegmentsSummary], selected_manager: str) -> list[dict[str, object]]:
@@ -956,15 +1033,15 @@ def _segments_range_report_rows(summaries: list[SegmentsSummary], selected_manag
     total_store_sales = sum(totals["store_sales"])
     total_sales_trans = sum(totals["sales_trans"])
     total_visible_values = [
-        _format_number(total_segment_count),
-        _format_percent(_average_number(totals["segment_total_pct"])),
-        _format_number(total_success_segments),
-        _format_percent((total_success_segments / total_segment_count * 100) if total_segment_count else None),
-        _format_currency(total_store_sales),
-        _format_number(total_sales_trans),
-        _format_percent(_average_number(totals["conversion"])),
-        _format_number((total_store_sales / total_sales_trans) if total_sales_trans else None),
-        _format_number(_average_number(totals["upt"])),
+        _format_segment_number(total_segment_count),
+        _format_segment_percent(_average_number(totals["segment_total_pct"])),
+        _format_segment_number(total_success_segments),
+        _format_segment_percent((total_success_segments / total_segment_count * 100) if total_segment_count else None),
+        _format_segment_currency(total_store_sales),
+        _format_segment_number(total_sales_trans),
+        _format_segment_percent(_average_number(totals["conversion"])),
+        _format_segment_number((total_store_sales / total_sales_trans) if total_sales_trans else None),
+        _format_segment_number(_average_number(totals["upt"])),
     ]
     rows.append(
         {
@@ -1003,15 +1080,15 @@ def _segments_range_report_rows(summaries: list[SegmentsSummary], selected_manag
                 "Average",
                 "",
                 selected_name,
-                _format_average_number(totals["segment_count"]),
-                _format_percent(_average_number(totals["segment_total_pct"])),
-                _format_average_number(totals["success_segments"]),
-                _format_percent(_average_number(totals["success_pct"])),
-                _format_currency(_average_number(totals["store_sales"])),
-                _format_average_number(totals["sales_trans"]),
-                _format_percent(_average_number(totals["conversion"])),
-                _format_average_number(totals["dpt"]),
-                _format_average_number(totals["upt"]),
+                _format_segment_number(_average_number(totals["segment_count"])),
+                _format_segment_percent(_average_number(totals["segment_total_pct"])),
+                _format_segment_number(_average_number(totals["success_segments"])),
+                _format_segment_percent(_average_number(totals["success_pct"])),
+                _format_segment_currency(_average_number(totals["store_sales"])),
+                _format_segment_number(_average_number(totals["sales_trans"])),
+                _format_segment_percent(_average_number(totals["conversion"])),
+                _format_segment_number(_average_number(totals["dpt"])),
+                _format_segment_number(_average_number(totals["upt"])),
             ],
         }
     )
@@ -1036,16 +1113,43 @@ def _find_segments_manager_row(manager_rows: object, selected_manager: str) -> d
 
 def _segments_visible_values_from_metrics(metrics: dict[str, object]) -> list[str]:
     return [
-        _format_number(metrics.get("segment_count")),
-        _format_percent(metrics.get("segment_total_pct")),
-        _format_number(metrics.get("success_segments")),
-        _format_percent(metrics.get("success_pct")),
-        _format_currency(metrics.get("store_sales")),
-        _format_number(metrics.get("sales_trans")),
-        _format_percent(metrics.get("conversion")),
-        _format_number(metrics.get("dpt")),
-        _format_number(metrics.get("upt")),
+        _format_segment_number(metrics.get("segment_count")),
+        _format_segment_percent(metrics.get("segment_total_pct")),
+        _format_segment_number(metrics.get("success_segments")),
+        _format_segment_percent(metrics.get("success_pct")),
+        _format_segment_currency(metrics.get("store_sales")),
+        _format_segment_number(metrics.get("sales_trans")),
+        _format_segment_percent(metrics.get("conversion")),
+        _format_segment_number(metrics.get("dpt")),
+        _format_segment_number(metrics.get("upt")),
     ]
+
+
+def _format_segment_number(value: object | None) -> str:
+    if value is None:
+        return ""
+    number = _coerce_number(value)
+    if number is None:
+        return str(value)
+    return f"{Decimal(str(number)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
+
+
+def _format_segment_percent(value: object | None) -> str:
+    if value is None:
+        return ""
+    number = _coerce_decimal(value)
+    if abs(number) <= 1:
+        number *= 100
+    return f"{number.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}%"
+
+
+def _format_segment_currency(value: object | None) -> str:
+    if value is None:
+        return ""
+    number = _coerce_number(value)
+    if number is None:
+        return str(value)
+    return f"${Decimal(str(number)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
 
 
 def _gift_cards_report_headers() -> list[str]:
@@ -1106,6 +1210,7 @@ def _gift_cards_report_rows(summaries: list[GiftCardsSummary]) -> list[dict[str,
                         "name": row.get("name"),
                         "associate_number": row.get("associate_number", ""),
                         "weekly_sales_ready": weekly_sales_ready,
+                        "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 == 0 else 'report-week-row-odd'}",
                         "values": values,
                     }
                 )
@@ -1122,6 +1227,7 @@ def _gift_cards_report_rows(summaries: list[GiftCardsSummary]) -> list[dict[str,
                     "name": store_total.get("name"),
                     "associate_number": store_total.get("associate_number", ""),
                     "weekly_sales_ready": weekly_sales_ready,
+                    "row_class": "report-summary-row report-store-total-row",
                     "values": values,
                 }
             )
@@ -1169,8 +1275,9 @@ def _gift_cards_row_values(row: dict[str, object]) -> list[object]:
     ]
 
 
-def _gift_cards_associate_report_headers() -> list[str]:
-    return ["Week", "Date", "Associate #", "Name", "Total Transactions", "Total Transactions with GC Bonus", "% Transactions w/ GC Bonus", "Missed Opportunities"]
+def _gift_cards_associate_report_headers(*, include_period: bool = True) -> list[str]:
+    columns = ["Associate #", "Name", "Total Transactions", "Total Transactions with GC Bonus", "% Transactions w/ GC Bonus", "Missed Opportunities"]
+    return (["Week", "Date"] if include_period else []) + columns
 
 
 def _aggregate_associate_report_rows(summaries: list[Any], selected_associate: str, report_type: str, period_label: str) -> list[dict[str, object]]:
@@ -1225,19 +1332,19 @@ def _aggregate_associate_report_rows(summaries: list[Any], selected_associate: s
         total = float(values.get(metric_names[0]) or 0)
         related = float(values.get(metric_names[1]) or 0)
         rate = related / total * 100 if total else None
-        display = ["Total", "", group["number"], group["name"], _format_number(total), _format_number(related)]
+        display = [group["number"], group["name"], _format_number(total), _format_number(related)]
         if report_type == "gift_cards":
             display.extend([_format_percent(rate), _format_currency(values.get("missed_opportunities"))])
         else:
             display.append(_format_percent(rate))
-        rows.append({"summary": group["summary"], "row_kind": "associate_total", "row_class": "report-summary-row report-summary-total", "values": display[:headers_len]})
+        rows.append({"summary": group["summary"], "row_kind": "associate_total", "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 else 'report-week-row-odd'}", "values": display[:headers_len - 2]})
     if not selected_associate and any(value for value in store_totals.values()):
         total = store_totals[metric_names[0]]
         related = store_totals[metric_names[1]]
-        display = ["Total", "", store_number, store_name, _format_number(total), _format_number(related), _format_percent(related / total * 100 if total else None)]
+        display = [store_number, store_name, _format_number(total), _format_number(related), _format_percent(related / total * 100 if total else None)]
         if report_type == "gift_cards":
             display.append(_format_currency(store_totals.get("missed_opportunities")))
-        rows.append({"row_kind": "store_total", "row_class": "report-summary-row report-summary-total", "values": display[:headers_len]})
+        rows.append({"row_kind": "store_total", "row_class": "report-summary-row report-store-total-row", "values": display[:headers_len - 2]})
     return rows
 
 
@@ -1392,6 +1499,7 @@ def _bonus_club_report_rows(summaries: list[BonusClubSummary]) -> list[dict[str,
                         "date": date_label,
                         "name": row.get("name"),
                         "associate_number": row.get("associate_number", ""),
+                        "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 == 0 else 'report-week-row-odd'}",
                         "values": values,
                     }
                 )
@@ -1407,6 +1515,7 @@ def _bonus_club_report_rows(summaries: list[BonusClubSummary]) -> list[dict[str,
                     "date": date_label,
                     "name": store_total.get("name"),
                     "associate_number": store_total.get("associate_number", ""),
+                    "row_class": "report-summary-row report-store-total-row",
                     "values": values,
                 }
             )
@@ -1452,8 +1561,9 @@ def _bonus_club_row_values(row: dict[str, object]) -> list[object]:
     ]
 
 
-def _bonus_club_associate_report_headers() -> list[str]:
-    return ["Week", "Date", "Associate #", "Name", "Total Transactions", "Transactions with Club #", "Bonus Club Capture Rate"]
+def _bonus_club_associate_report_headers(*, include_period: bool = True) -> list[str]:
+    columns = ["Associate #", "Name", "Total Transactions", "Transactions with Club #", "Bonus Club Capture Rate"]
+    return (["Week", "Date"] if include_period else []) + columns
 
 
 def _bonus_club_associate_report_rows(summaries: list[BonusClubSummary], selected_associate: str, *, aggregate: bool = False, period_label: str = "") -> list[dict[str, object]]:
@@ -1892,7 +2002,7 @@ def _report_date_state(request: HttpRequest, report_type: str) -> dict[str, obje
     range_end_text = str(request.GET.get("range_end", today.isoformat()))
     selected_associate = str(request.GET.get("associate", "")).strip()
     associate_options = _associate_options_for_report(report_type, summaries)
-    if report_type in {"gift_cards", "bonus_club", "segments"} and mode == "range" and not selected_associate and associate_options:
+    if report_type == "segments" and mode == "range" and not selected_associate and associate_options:
         selected_associate = str(associate_options[0]["value"])
     selected_associate_label = next((str(option["label"]) for option in associate_options if str(option["value"]) == selected_associate), "")
     range_select_label = "Manager" if report_type == "segments" else "Associate"
@@ -1926,32 +2036,32 @@ def _report_date_state(request: HttpRequest, report_type: str) -> dict[str, obje
     multi_period = len(filtered) > 1 and mode in {"month", "quarter", "range"}
     period_label = _report_timeframe_label(mode, filtered, range_start, range_end, week_end, today)
     if report_type == "gift_cards" and mode in {"month", "quarter", "range"}:
-        headers = _gift_cards_associate_report_headers()
-        rows = _gift_cards_associate_report_rows(filtered, selected_associate, aggregate=multi_period, period_label=period_label)
+        headers = _gift_cards_associate_report_headers(include_period=False)
+        rows = _gift_cards_associate_report_rows(filtered, "", aggregate=True, period_label=period_label)
         report_table_class = "report-grid report-grid-associate"
     elif report_type == "bonus_club" and mode in {"month", "quarter", "range"}:
-        headers = _bonus_club_associate_report_headers()
-        rows = _bonus_club_associate_report_rows(filtered, selected_associate, aggregate=multi_period, period_label=period_label)
+        headers = _bonus_club_associate_report_headers(include_period=False)
+        rows = _bonus_club_associate_report_rows(filtered, "", aggregate=True, period_label=period_label)
         report_table_class = "report-grid report-grid-associate"
-    elif report_type == "segments" and mode == "range":
-        headers = _segments_range_report_headers()
-        rows = _segments_range_report_rows(filtered, selected_associate)
+    elif report_type == "segments" and mode in {"month", "quarter", "range"}:
+        headers = _segments_range_report_headers(include_period=False)
+        rows = _segments_aggregate_report_rows(filtered)
         report_table_class = "report-grid report-grid-associate"
     else:
         rows = row_builder(filtered)
     note = ""
     if report_type == "gift_cards":
         if mode in {"month", "quarter", "range"}:
-            note = f"{period_label} for {selected_associate_label or 'all associates'}."
+            note = f"{period_label} for all associates."
         else:
             note = "Waiting on weekly sales." if any(not row.get("weekly_sales_ready", True) for row in rows) else "One row per associate, store total at bottom."
     elif report_type == "bonus_club":
         if mode in {"month", "quarter", "range"}:
-            note = f"{period_label} for {selected_associate_label or 'all associates'}."
+            note = f"{period_label} for all associates."
         else:
             note = "One row per associate, store total at bottom."
-    elif report_type == "segments" and mode == "range":
-        note = f"Weekly manager performance for {selected_associate_label or 'the selected manager'} over the selected timeframe."
+    elif report_type == "segments" and mode in {"month", "quarter", "range"}:
+        note = f"{period_label} for all managers, with combined store totals."
     elif report_type == "weekly_sales" and mode == "year":
         note = "Monthly, quarterly, and yearly totals for the selected fiscal year."
     elif report_type == "ranking" and mode == "year":
@@ -2092,7 +2202,7 @@ def _dashboard_payroll_hours() -> dict[str, str]:
     """Return latest-week actual, target, and variance hours for Review."""
     summaries = _latest_payroll_summaries()
     if not summaries:
-        return {"actual_hours": "", "target_hours": "", "variance_hours": ""}
+        return {"actual_hours": "", "target_hours": "", "variance_hours": "", "actual_vs_earned": ""}
     dated_rows = [
         (_week_ending_date(row.get("NOTES")), row)
         for summary in summaries
@@ -2115,7 +2225,57 @@ def _dashboard_payroll_hours() -> dict[str, str]:
         "actual_hours": f"{actual:.1f}",
         "target_hours": f"{target:.1f}",
         "variance_hours": f"{actual - target:+.1f}",
+        "actual_vs_earned": f"{actual / target * 100:.1f}%" if target else "",
     }
+
+
+def _dashboard_bonus_gift_table() -> dict[str, object]:
+    """Return last-week Bonus Club/Gift Card rows with store comparisons."""
+    gift = _dashboard_latest_summary(GiftCardsSummary)
+    bonus = _dashboard_latest_summary(BonusClubSummary)
+    gift_raw = gift.raw_json if gift and isinstance(gift.raw_json, dict) else {}
+    bonus_raw = bonus.raw_json if bonus and isinstance(bonus.raw_json, dict) else {}
+
+    def rows_by_person(raw: dict[str, object]) -> dict[str, dict[str, object]]:
+        rows = raw.get("associate_rows") if isinstance(raw.get("associate_rows"), list) else []
+        result: dict[str, dict[str, object]] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            number = str(row.get("associate_number") or "").strip()
+            name = str(row.get("name") or "").strip()
+            key = number or _normalize_person_name(name)
+            if key:
+                result[key] = row
+        return result
+
+    gift_rows, bonus_rows = rows_by_person(gift_raw), rows_by_person(bonus_raw)
+    gift_store = gift_raw.get("store_total") if isinstance(gift_raw.get("store_total"), dict) else {}
+    bonus_store = bonus_raw.get("store_total") if isinstance(bonus_raw.get("store_total"), dict) else {}
+    gift_store_metrics = gift_store.get("metrics") if isinstance(gift_store.get("metrics"), dict) else {}
+    bonus_store_metrics = bonus_store.get("metrics") if isinstance(bonus_store.get("metrics"), dict) else {}
+    gift_store_rate = _coerce_number(gift_store_metrics.get("bonus_percent"))
+    bonus_store_rate = _coerce_number(bonus_store_metrics.get("capture_rate"))
+    headers = ["Associate", "Bonus Club Total", "Club #", "Club %", "GC Total", "GC Bonus #", "GC %", "Missed Ops"]
+    rows: list[dict[str, object]] = []
+    for key in sorted(set(gift_rows) | set(bonus_rows), key=lambda item: str((gift_rows.get(item) or bonus_rows.get(item) or {}).get("name", "")).casefold()):
+        gift_row, bonus_row = gift_rows.get(key, {}), bonus_rows.get(key, {})
+        gift_metrics = gift_row.get("metrics") if isinstance(gift_row.get("metrics"), dict) else {}
+        bonus_metrics = bonus_row.get("metrics") if isinstance(bonus_row.get("metrics"), dict) else {}
+        gift_rate = _coerce_number(gift_metrics.get("bonus_percent"))
+        bonus_rate = _coerce_number(bonus_metrics.get("capture_rate"))
+        rows.append({
+            "values": [str(gift_row.get("name") or bonus_row.get("name") or ""), _format_number(bonus_metrics.get("total_transactions")), _format_number(bonus_metrics.get("transactions_with_club")), _format_percent(bonus_rate), _format_number(gift_metrics.get("total_transactions")), _format_number(gift_metrics.get("gc_bonus_transactions")), _format_percent(gift_rate), _format_currency(gift_metrics.get("missed_opportunities"))],
+            "bonus_above_store": bonus_rate is not None and bonus_store_rate is not None and bonus_rate > bonus_store_rate,
+            "gift_above_store": gift_rate is not None and gift_store_rate is not None and gift_rate > gift_store_rate,
+            "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 else 'report-week-row-odd'}",
+        })
+    if gift_store or bonus_store:
+        rows.append({
+            "values": [str(bonus_store.get("name") or gift_store.get("name") or "Store Total"), _format_number(bonus_store_metrics.get("total_transactions")), _format_number(bonus_store_metrics.get("transactions_with_club")), _format_percent(bonus_store_rate), _format_number(gift_store_metrics.get("total_transactions")), _format_number(gift_store_metrics.get("gc_bonus_transactions")), _format_percent(gift_store_rate), _format_currency(gift_store_metrics.get("missed_opportunities"))],
+            "row_class": "report-summary-row report-store-total-row",
+        })
+    return {"headers": headers, "rows": rows}
 
 
 def _dashboard_ranking_summaries(limit: int = 4) -> list[RankingSummary]:
@@ -2306,7 +2466,7 @@ _CURRENCY_METRICS = {"Sales", "LY Sales", "Target", "Ent Sales"}
 _PERCENT_METRICS = {"% Tgt", "Conv", "LY Conv", "% Δ LY Traf", "Cap Rate"}
 # Keep these metrics in the persisted/raw payload, but omit them from the
 # compact report viewer and dashboard tables.
-_REPORT_VIEW_HIDDEN_METRICS = {"LY Traffic", "Sales Tr", "Cap Rate", "STAR"}
+_REPORT_VIEW_HIDDEN_METRICS = {"Ent Sales", "LY Traffic", "Sales Tr", "Cap Rate", "STAR"}
 
 
 _RANKING_VIEW_METRICS = (

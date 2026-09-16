@@ -40,7 +40,7 @@
           End week ending date
           <input type="date" name="range_end" value="{{ report_range_end }}">
         </label>
-        {% if report_associate_options %}
+        {% if report_show_associate_filter and report_associate_options %}
           <label>
             {{ report_range_select_label|default:'Associate' }}
             <select name="associate">

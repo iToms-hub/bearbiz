@@ -86,7 +86,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert 'class="upload-file-row"' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.1.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.1.5' in history_html
         assert "Uploaded reports" in history_html
         assert "Settings" in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
@@ -1151,14 +1151,19 @@ def test_segments_range_view_with_manager_totals_and_average(client: Client, tmp
     assert "Manager" in html
     assert "Vanessa Esparza" in html
     assert "Jordan Lee" in html
-    assert "Store Total" not in html
-    assert "<td>Total</td>" in html
-    assert "<tr class=\"report-spacer-row\">" in html
-    assert "<td>Average</td>" in html
+    assert "Store Total" in html
+    assert '<th>Week</th>' not in html
+    assert '<th>Date</th>' not in html
+    assert '<select name="associate"' not in html
+    assert "<td>Total</td>" not in html
+    assert "<td>Average</td>" not in html
+    assert 'class="report-summary-row report-store-total-row"' in html
     assert "21" in html
     assert "$13,349" in html
-    assert html.index("<td>Total</td>") > html.index("Vanessa Esparza")
-    assert html.index("<td>Average</td>") > html.index("<td>Total</td>")
+    assert "72.00" in html
+    assert "$38,316.00" in html
+    assert "12.8" not in html
+    assert "3.95" not in html
 
 
 @pytest.mark.django_db()
@@ -1341,7 +1346,7 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         assert 'Select a PDF' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.1.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.1.5' in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
         assert 'aria-label="Section tabs"' not in history_html
 
@@ -1486,14 +1491,20 @@ def test_gift_cards_associate_range_view(client: Client, tmp_path: Path) -> None
     assert "Associate" in html
     assert "Montejano, Mindy" in html
     assert "Vega, Alex" in html
-    assert "Store Sales" not in html
+    assert "Store Sales" in html
+    assert '<th>Week</th>' not in html
+    assert '<th>Date</th>' not in html
+    assert '<select name="associate"' not in html
+    assert 'class="report-week-row report-week-row-odd"' in html
+    assert 'class="report-week-row report-week-row-even"' in html
+    assert 'class="report-summary-row report-store-total-row"' in html
     assert "Average" not in html
-    assert "<td>Total</td>" in html
+    assert "<td>Total</td>" not in html
     assert "02/01/26–02/28/26" in html
     assert "$3,170.33" in html
-    assert "155" in html
-    assert "34" in html
-    assert "21.94%" in html
+    assert "818" in html
+    assert "82" in html
+    assert "10.02%" in html
 
 
 @pytest.mark.django_db()
@@ -1567,14 +1578,48 @@ def test_bonus_club_associate_range_view(client: Client, tmp_path: Path) -> None
     assert "Associate" in html
     assert "Montejano, Mindy" in html
     assert "Vega, Alex" in html
-    assert "Store Sales" not in html
+    assert "Store Sales" in html
+    assert '<th>Week</th>' not in html
+    assert '<th>Date</th>' not in html
+    assert '<select name="associate"' not in html
+    assert 'class="report-week-row report-week-row-odd"' in html
+    assert 'class="report-week-row report-week-row-even"' in html
+    assert 'class="report-summary-row report-store-total-row"' in html
     assert "Missed Opportunities" not in html
     assert "Average" not in html
-    assert "<td>Total</td>" in html
+    assert "<td>Total</td>" not in html
     assert "02/01/26–02/28/26" in html
-    assert "155" in html
-    assert "82" in html
-    assert "52.9%" in html
+    assert "818" in html
+    assert "548" in html
+    assert "66.99%" in html
+
+
+@pytest.mark.django_db()
+def test_timeframe_pdf_does_not_repeat_showing_totals(client: Client, tmp_path: Path) -> None:
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    with override_settings(MEDIA_ROOT=media_root):
+        upload = ReportUpload.objects.create(
+            source_file=SimpleUploadedFile("bonus-club.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf"),
+            source_name="bonus-club.pdf", report_type="bonus_club", parse_status="parsed",
+        )
+        BonusClubSummary.objects.create(
+            report_upload=upload, fiscal_year=2026, fiscal_week=36,
+            fiscal_period_end=date(2026, 9, 6),
+            raw_json={
+                "associate_rows": [{"associate_number": "0079555", "name": "Montejano, Mindy", "metrics": {"total_transactions": 10, "transactions_with_club": 5}}],
+                "store_total": {"name": "Store Sales", "metrics": {"total_transactions": 10, "transactions_with_club": 5}},
+            },
+        )
+        response = client.get(reverse("reports:report-pdf", kwargs={"number": 5}), {"date_filter": "quarter"})
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF-")
+    fitz = pytest.importorskip("fitz")
+    document = fitz.open(stream=response.content, filetype="pdf")
+    pdf_text = "\n".join(str(page.get_text()) for page in document)
+    assert pdf_text.count("Showing Q3 totals") == 1
+    assert "Showing Q3 totals for all associates." in pdf_text
 
 
 @pytest.mark.django_db()

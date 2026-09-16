@@ -33,6 +33,7 @@
       .report-week-row-even { background: #f1f1f1; }
       .report-week-row-latest { background: #e2f3e6; font-weight: 650; }
       .report-summary-row { background: #e8f1ff; font-weight: 650; }
+      .report-store-total-row { background: #dbeafe; font-weight: 700; }
       .report-summary-month { background: #e4f0ff; }
       .report-summary-quarter { background: #dceaff; }
       .report-summary-year,
@@ -46,7 +47,7 @@
         <h1>{{ report_pdf_title }}</h1>
       </div>
       <h2>{{ report_view_title }}</h2>
-      <p>{{ report_view_note }} · {{ report_period_label }}</p>
+      <p>{{ report_view_note }}{% if report_pdf_period_label %} · {{ report_pdf_period_label }}{% endif %}</p>
     </div>
     {% if report_rows %}
       <table class="{{ report_table_class|default:'report-grid striped' }}">

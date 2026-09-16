@@ -92,7 +92,7 @@
               {% endfor %}
             </aside>
             <section class="template-mock-page" aria-label="Review template preview">
-              <div class="template-mock-heading"><input name="name" value="{{ selected_template.name }}" aria-label="Template name"><span class="muted">Last Week Review</span></div>
+              <div class="template-mock-heading"><input name="name" value="{{ selected_template.name }}" aria-label="Template name"><span class="muted">Last Weeks Performance Review</span></div>
               <div class="template-dropzone" data-dropzone>
                 {% for module in selected_template.layout %}
                   <article class="template-layout-module{% if module.enabled is False %} is-disabled{% endif %}" draggable="true" data-module-type="{{ module.type }}" data-module-title="{{ module.title }}" data-enabled="{{ module.enabled|default_if_none:'true'|lower }}">
