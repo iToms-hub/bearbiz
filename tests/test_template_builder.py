@@ -2,15 +2,41 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from django.test import Client
 from django.urls import reverse
 
 from apps.core.models import ReviewTemplate
+from apps.reports.views import _dashboard_segment_rows
 
 
 ROOT = Path(__file__).parents[1]
+
+
+def test_review_segments_highlight_best_latest_week_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = [
+        {"row_kind": "manager", "summary": SimpleNamespace(pk=1, fiscal_year=2026, fiscal_week=30), "week": "30", "date": "08/02/26", "metrics": {"success_segments": 9, "success_pct": 90, "store_sales": 2000, "sales_trans": 20, "conversion": 30, "dpt": 4, "upt": 2}},
+        {"row_kind": "manager", "summary": SimpleNamespace(pk=2, fiscal_year=2026, fiscal_week=31), "week": "31", "date": "08/09/26", "metrics": {"success_segments": 2, "success_pct": 50, "store_sales": 1000, "sales_trans": 10, "conversion": 20, "dpt": 3, "upt": 1.2}},
+        {"row_kind": "manager", "summary": SimpleNamespace(pk=2, fiscal_year=2026, fiscal_week=31), "week": "31", "date": "08/09/26", "metrics": {"success_segments": 3, "success_pct": 60, "store_sales": 1200, "sales_trans": 12, "conversion": 18, "dpt": 3.5, "upt": 1.2}},
+        {"row_kind": "store_total", "metrics": {"success_pct": 99, "conversion": 99, "dpt": 99, "upt": 99}},
+    ]
+    monkeypatch.setattr("apps.reports.views._segments_report_rows", lambda summaries: rows)
+
+    highlighted = _dashboard_segment_rows([])
+
+    assert highlighted[0]["highlight_success"] is True
+    assert highlighted[1]["highlight_success"] is False
+    assert highlighted[2]["highlight_success"] is True
+    assert highlighted[2]["highlight_success_segments"] is True
+    assert highlighted[2]["highlight_store_sales"] is True
+    assert highlighted[2]["highlight_sales_trans"] is True
+    assert highlighted[1]["highlight_conversion"] is True
+    assert highlighted[2]["highlight_conversion"] is False
+    assert highlighted[2]["highlight_dpt"] is True
+    assert highlighted[1]["highlight_upt"] is True
+    assert highlighted[2]["highlight_upt"] is True
 
 
 @pytest.mark.django_db()
@@ -22,7 +48,7 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     assert created.status_code == 200
     html = created.content.decode()
     assert "Review templates" in html
-    assert "Bonus Club &amp; Gift Cards" in html
+    assert "Last Weeks Bonus Club &amp; Gift Cards" in html
     assert "Weekly Sales Trend" in html
     assert "template-module-library" in html
     assert "template-mock-page" in html
@@ -72,6 +98,8 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     pdf_template = (ROOT / "templates/reports/dashboard_review_pdf.html").read_text()
     assert "td.review-above-store" in pdf_template
     assert ".payroll-metric { display: table-cell; width: 25%" in pdf_template
+    assert "tbody tr.report-week-row-latest" in pdf_template
+    assert "td.review-best-performance" in pdf_template
 
     deleted = client.post(reverse("settings:templates"), {"action": "delete", "template_id": str(template.pk)})
     assert deleted.status_code == 200

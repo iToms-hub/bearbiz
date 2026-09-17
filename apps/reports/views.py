@@ -166,7 +166,10 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
     for module in (selected.layout if selected else []):
         if module.get("enabled", True) is False:
             continue
-        review_render_modules.append({**module, **module_data.get(module.get("type"), {})})
+        rendered_module = {**module, **module_data.get(module.get("type"), {})}
+        if rendered_module.get("type") == "bonus-gift-combined" and rendered_module.get("title") == "Bonus Club & Gift Cards":
+            rendered_module["title"] = "Last Weeks Bonus Club & Gift Cards"
+        review_render_modules.append(rendered_module)
     review_week = weekly[-1].fiscal_week if weekly else calculate_fiscal_week(
         _current_date() - timedelta(days=6), _current_date()
     ).fiscal_week_number
@@ -860,6 +863,7 @@ def _segments_report_rows(summaries: list[SegmentsSummary]) -> list[dict[str, ob
                 {
                     "summary": summary,
                     "row_kind": row.get("row_kind"),
+                    "metrics": row.get("metrics", {}),
                     "week": week_label,
                     "date": date_label,
                     "name": row.get("name"),
@@ -2302,7 +2306,46 @@ def _dashboard_segment_summaries(limit: int = 4) -> list[SegmentsSummary]:
 
 def _dashboard_segment_rows(summaries: list[SegmentsSummary]) -> list[dict[str, object]]:
     rows = _segments_report_rows(summaries)
-    return [row for row in rows if row.get("row_kind") == "manager"]
+    manager_rows = [row for row in rows if row.get("row_kind") == "manager"]
+    if not manager_rows:
+        return manager_rows
+
+    highlight_metrics = {
+        "success_segments": "highlight_success_segments",
+        "success_pct": "highlight_success",
+        "store_sales": "highlight_store_sales",
+        "sales_trans": "highlight_sales_trans",
+        "conversion": "highlight_conversion",
+        "dpt": "highlight_dpt",
+        "upt": "highlight_upt",
+    }
+    rows_by_week: dict[tuple[object, ...], list[dict[str, object]]] = {}
+    for row in manager_rows:
+        summary = row.get("summary")
+        week_key = (
+            getattr(summary, "pk", None),
+            getattr(summary, "fiscal_year", None),
+            getattr(summary, "fiscal_week", None),
+            row.get("week"),
+            row.get("date"),
+        )
+        rows_by_week.setdefault(week_key, []).append(row)
+
+    for weekly_rows in rows_by_week.values():
+        best_values = {}
+        for metric in highlight_metrics:
+            values = [
+                value
+                for row in weekly_rows
+                if (value := _coerce_number(cast(dict[str, object], row.get("metrics") or {}).get(metric))) is not None
+            ]
+            best_values[metric] = max(values) if values else None
+        for row in weekly_rows:
+            metrics = cast(dict[str, object], row.get("metrics") or {})
+            for metric, flag in highlight_metrics.items():
+                value = _coerce_number(metrics.get(metric))
+                row[flag] = value is not None and best_values[metric] is not None and value == best_values[metric]
+    return manager_rows
 
 
 def _dashboard_trend_rows(summaries: list[WeeklySalesSummary]) -> list[dict[str, object]]:

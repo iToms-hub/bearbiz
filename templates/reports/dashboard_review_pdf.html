@@ -31,7 +31,9 @@
     tbody tr.report-summary-month { background: #e4f0ff; }
     tbody tr.report-summary-quarter { background: #dceaff; }
     tbody tr.report-summary-year, tbody tr.report-summary-trend { background: #d2e3ff; font-weight: bold; }
+    tbody tr.report-week-row-latest { background: #e2f3e6; font-weight: 650; }
     td.review-above-store { background: #d1fae5; font-weight: bold; }
+    td.review-best-performance { background: #d1fae5; font-weight: bold; }
     .pdf-footer { position: fixed; bottom: -0.48in; left: 0; right: 0; height: 0.36in; color: #555; font-size: 7pt; }
     .pdf-footer-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
     .pdf-footer-table td { width: 33.333%; padding: 0; border: 0; vertical-align: middle; white-space: nowrap; }
@@ -53,6 +55,8 @@
         <div class="note">{{ module.text|safe|default:"No notes added." }}</div>
       {% elif module.type == 'bonus-gift-combined' %}
         <table class="report-grid striped"><thead><tr>{% for header in module.headers %}<th>{{ header }}</th>{% endfor %}</tr></thead><tbody>{% for row in module.rows %}<tr class="{{ row.row_class|default:'' }}">{% for value in row.values %}<td{% if forloop.counter0 == 3 and row.bonus_above_store or forloop.counter0 == 6 and row.gift_above_store %} class="review-above-store"{% endif %}>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+      {% elif module.type == 'segments' %}
+        <table class="report-grid striped"><thead><tr>{% for header in module.headers %}<th>{{ header }}</th>{% endfor %}</tr></thead><tbody>{% for row in module.rows %}<tr class="{{ row.row_class|default:'' }}">{% for value in row.values %}<td{% if forloop.counter0 == 5 and row.highlight_success_segments or forloop.counter0 == 6 and row.highlight_success or forloop.counter0 == 7 and row.highlight_store_sales or forloop.counter0 == 8 and row.highlight_sales_trans or forloop.counter0 == 9 and row.highlight_conversion or forloop.counter0 == 10 and row.highlight_dpt or forloop.counter0 == 11 and row.highlight_upt %} class="review-best-performance"{% endif %}>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
       {% elif module.type == 'bonus-club' or module.type == 'gift-card-bonus' %}
         <p>{{ module.value|default:"No persisted data" }}</p>
       {% elif module.type == 'payroll' %}
