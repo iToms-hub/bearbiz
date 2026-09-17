@@ -68,9 +68,9 @@ def coming_soon(request: HttpRequest, feature: str) -> HttpResponse:
 
 REVIEW_MODULES = [
     ("bonus-gift-combined", "Last Weeks Bonus Club & Gift Cards"),
+    ("payroll", "Last Week Payroll"),
     ("weekly-sales-trend", "Weekly Sales Trend · Last 6 Weeks"),
     ("segments", "Last Week Segments"),
-    ("payroll", "Last Week Payroll"),
     ("parties", "Last Week Parties"),
     ("rankings", "Rankings · Last 5 Weeks"),
     ("notes", "Notes"),

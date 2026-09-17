@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 from django.db import models
@@ -246,35 +247,6 @@ class SegmentsSummary(models.Model):
         return self.raw_json
 
 
-class PayrollSummary(models.Model):
-    """Source-faithful weekly payroll tracker extracted from a PDF upload."""
-
-    report_upload = models.OneToOneField(
-        ReportUpload, on_delete=models.CASCADE, related_name="payroll_summary"
-    )
-    source_date = models.DateField(null=True, blank=True, db_index=True)
-    source_month = models.PositiveSmallIntegerField(null=True, blank=True)
-    source_week = models.PositiveSmallIntegerField(null=True, blank=True)
-    current_week = models.BooleanField(default=False)
-    rows = models.JSONField(default=list, blank=True)
-    monthly_summary = models.JSONField(default=dict, blank=True)
-    raw_json = models.JSONField(default=dict, blank=True)
-    parse_version = models.PositiveSmallIntegerField(default=1)
-    edited_rows = models.JSONField(default=dict, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["-source_date", "-created_at", "-id"]
-        indexes = [models.Index(fields=["source_date", "-created_at"])]
-        verbose_name = "payroll summary"
-        verbose_name_plural = "payroll summaries"
-
-    def __str__(self) -> str:
-        label = self.source_date.isoformat() if self.source_date else "undated"
-        return f"Payroll {label}"
-
-
 class PartiesSummary(models.Model):
     """Source-faithful weekly parties report, including raw metric cells."""
 
@@ -292,3 +264,49 @@ class PartiesSummary(models.Model):
 
     def __str__(self) -> str:
         return f"Parties FY{self.fiscal_year} W{self.fiscal_week:02d}"
+
+
+class PayrollWeek(models.Model):
+    """Directly entered weekly Payroll values for the configured fiscal year."""
+
+    fiscal_year = models.PositiveSmallIntegerField()
+    fiscal_month = models.PositiveSmallIntegerField()
+    fiscal_week = models.PositiveSmallIntegerField()
+    sales_plan = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    trend_percent = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    sun = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    mon = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    tue = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    wed = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    thu = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    fri = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    sat = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    labor_calculator_target_hours = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["fiscal_year", "fiscal_week"]
+        constraints = [
+            models.UniqueConstraint(fields=["fiscal_year", "fiscal_week"], name="unique_payroll_week")
+        ]
+        verbose_name = "payroll week"
+        verbose_name_plural = "payroll weeks"
+
+    @property
+    def actual_sales(self) -> Decimal | None:
+        if self.sales_plan is None:
+            return None
+        trend = self.trend_percent or Decimal("0")
+        return (self.sales_plan * (Decimal("1") + trend / Decimal("100"))).quantize(Decimal("0.01"))
+
+    @property
+    def total_hours_actual_scheduled(self) -> Decimal:
+        fields = (self.sun, self.mon, self.tue, self.wed, self.thu, self.fri, self.sat)
+        return sum((value or Decimal("0") for value in fields), Decimal("0")).quantize(Decimal("0.01"))
+
+    @property
+    def current_variance(self) -> Decimal | None:
+        if self.labor_calculator_target_hours is None:
+            return None
+        return (self.total_hours_actual_scheduled - self.labor_calculator_target_hours).quantize(Decimal("0.01"))

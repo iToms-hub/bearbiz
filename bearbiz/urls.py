@@ -7,10 +7,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 
 from apps.core.views import coming_soon
-from apps.reports.payroll_views import delete as payroll_delete
-from apps.reports.payroll_views import download as payroll_download
 from apps.reports.payroll_views import index as payroll_index
-from apps.reports.payroll_views import upload_page as payroll_uploads
 from apps.reports.parties_views import delete as parties_delete
 from apps.reports.parties_views import download as parties_download
 from apps.reports.parties_views import index as parties_index
@@ -36,9 +33,6 @@ urlpatterns = [
     path("performance/", performance, name="performance"),
     path("performance/pdf/", performance_pdf, name="performance-pdf"),
     path("missed-ops/", coming_soon, {"feature": "Missed Ops"}, name="missed-ops"),
-    path("payroll/uploads/", payroll_uploads, name="payroll-uploads"),
-    path("payroll/uploads/<int:pk>/download/", payroll_download, name="payroll-download"),
-    path("payroll/uploads/<int:pk>/delete/", payroll_delete, name="payroll-delete"),
     path("payroll/", payroll_index, name="payroll"),
     path("product/", coming_soon, {"feature": "Product"}, name="product"),
     path("parties/uploads/", parties_uploads, name="parties-uploads"),

@@ -7,7 +7,7 @@
       {% if bonus_club_value %}
         <div class="dashboard-metric-value">{{ bonus_club_value }}</div>
       {% else %}
-        <div class="empty">No Bonus Club report has been wired in yet.</div>
+        <div class="empty">No persisted Bonus Club data is available.</div>
       {% endif %}
     </section>
 
@@ -16,27 +16,23 @@
       {% if gift_cards_value %}
         <div class="dashboard-metric-value">{{ gift_cards_value }}</div>
       {% else %}
-        <div class="empty">No Gift Cards report has been wired in yet.</div>
+        <div class="empty">No persisted Gift Cards data is available.</div>
       {% endif %}
     </section>
 
     <section class="panel dashboard-card dashboard-card-payroll stack">
       <h2>Payroll</h2>
-      {% if payroll_values.last_week or payroll_values.month %}
-        <div class="dashboard-payroll-values">
-          <div class="dashboard-payroll-value dashboard-payroll-last-week">
-            <span>Last Week:</span>
-            <strong>{{ payroll_values.last_week|default:"—" }}</strong>
-          </div>
-          <div class="dashboard-payroll-value dashboard-payroll-month">
-            <span>Month:</span>
-            <strong>{{ payroll_values.month|default:"—" }}</strong>
-          </div>
+      {% if payroll_summary %}
+        <div class="payroll-dashboard-details">
+          <div><span>Last Week</span><strong>{{ payroll_summary.total_hours }}</strong></div>
+          <div><span>+/- Target</span><strong>{{ payroll_summary.variance }}</strong></div>
+          <div><span>Percent to Target</span><strong>{{ payroll_summary.percent }}</strong></div>
         </div>
       {% else %}
-        <div class="empty">No Payroll report has been uploaded yet.</div>
+        <div class="empty">No Payroll data available.</div>
       {% endif %}
     </section>
+
   </div>
 
   <section class="panel stack">
@@ -91,7 +87,7 @@
         </table>
       </div>
     {% else %}
-      <div class="empty">No ranking reports have been wired in yet.</div>
+      <div class="empty">No persisted ranking data is available.</div>
     {% endif %}
   </section>
 
@@ -119,7 +115,7 @@
         </table>
       </div>
     {% else %}
-      <div class="empty">No segment reports have been wired in yet.</div>
+      <div class="empty">No persisted Segment Accountability data is available.</div>
     {% endif %}
   </section>
 {% endblock %}

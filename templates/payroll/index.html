@@ -1,21 +1,107 @@
 {% extends "base.html" %}
 {% block title %}Payroll{% endblock %}
 {% block content %}
-<section class="panel stack">
-  <h2>Payroll</h2>
-  <p class="muted">Weekly payroll tracker and source-faithful monthly labor planning.</p>
-  <div class="report-toolbar payroll-toolbar">
-    <form method="get" class="inline-actions report-filter-form payroll-filter-form">
-      <label>Month <select name="month"><option value="">All</option><option value="1" {% if selected_month == '1' %}selected{% endif %}>January</option><option value="2" {% if selected_month == '2' %}selected{% endif %}>February</option><option value="3" {% if selected_month == '3' %}selected{% endif %}>March</option><option value="4" {% if selected_month == '4' %}selected{% endif %}>April</option><option value="5" {% if selected_month == '5' %}selected{% endif %}>May</option><option value="6" {% if selected_month == '6' %}selected{% endif %}>June</option><option value="7" {% if selected_month == '7' %}selected{% endif %}>July</option><option value="8" {% if selected_month == '8' %}selected{% endif %}>August</option><option value="9" {% if selected_month == '9' %}selected{% endif %}>September</option><option value="10" {% if selected_month == '10' %}selected{% endif %}>October</option><option value="11" {% if selected_month == '11' %}selected{% endif %}>November</option><option value="12" {% if selected_month == '12' %}selected{% endif %}>December</option></select></label>
-      <label>Quarter <select name="quarter"><option value="" {% if not selected_quarter %}selected{% endif %}>All</option><option value="1" {% if selected_quarter == '1' %}selected{% endif %}>Q1</option><option value="2" {% if selected_quarter == '2' %}selected{% endif %}>Q2</option><option value="3" {% if selected_quarter == '3' %}selected{% endif %}>Q3</option><option value="4" {% if selected_quarter == '4' %}selected{% endif %}>Q4</option></select></label>
-      <label>Year <input name="year" value="{{ selected_year }}" inputmode="numeric"></label>
-      <button class="page-action primary" type="submit">Apply</button>
-    </form>
-    <a class="page-action upload-action" href="{{ upload_page_url }}">Upload</a>
+<section class="panel stack payroll-page">
+  <div class="payroll-heading">
+    <div>
+      <h2>Weekly payroll entry</h2>
+      <p class="muted">Enter the configured fiscal year one month at a time. Calculated values are read-only.</p>
+    </div>
   </div>
+  <nav class="section-tabs payroll-month-tabs" aria-label="Fiscal month selector">
+      {% for month in payroll_tabs %}
+        <a class="tab{% if month.number == selected_payroll_month %} active{% endif %}" data-payroll-month-tab="{{ month.number }}" href="?month={{ month.number }}">{{ month.label }}</a>
+      {% endfor %}
+  </nav>
+  {% if payroll_errors %}
+    <div class="form-errors" role="alert">{% for error in payroll_errors %}<p>{{ error }}</p>{% endfor %}</div>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="month" value="{{ selected_payroll_month }}">
+    <div class="table-wrap payroll-table-wrap">
+      <table class="report-grid payroll-entry-grid striped">
+        <thead>
+          <tr>
+            <th>Week</th><th>Week Ending</th><th>Sales Plan</th><th>Trend %</th>
+            <th>SUN</th><th>MON</th><th>TUE</th><th>WED</th><th>THU</th><th>FRI</th><th>SAT</th>
+            <th>Actual Sales</th><th>Total Hours</th><th>Target Hours</th><th>Current +/-</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in payroll_rows %}
+          <tr>
+            <th scope="row">{{ row.week }}</th><td class="payroll-week-ending">{{ row.week_ending }}</td>
+            <td><input name="sales_plan_{{ row.week }}" value="{{ row.sales_plan }}" inputmode="decimal" aria-label="Week {{ row.week }} sales plan"></td>
+            <td><input name="trend_percent_{{ row.week }}" value="{{ row.trend_percent }}" inputmode="decimal" aria-label="Week {{ row.week }} trend percent"></td>
+            {% for day, value in row.days %}<td><input name="{{ day|lower }}_{{ row.week }}" value="{{ value }}" inputmode="decimal" aria-label="Week {{ row.week }} {{ day }} hours"></td>{% endfor %}
+            <td class="payroll-calculated" data-calculation="actual-sales">{{ row.actual_sales }}</td><td class="payroll-calculated" data-calculation="total-hours">{{ row.total_hours }}</td>
+            <td><input name="labor_target_{{ row.week }}" value="{{ row.labor_target }}" inputmode="decimal" aria-label="Week {{ row.week }} target hours"></td>
+            <td class="payroll-calculated" data-calculation="variance">{{ row.current_variance }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="payroll-summary-row payroll-total-row">
+            <th colspan="2">Total</th><td colspan="9"></td>
+            <td class="payroll-summary-value" data-summary="actual-sales">{{ payroll_summary.actual_sales }}</td>
+            <td class="payroll-summary-value" data-summary="total-hours">{{ payroll_summary.total_hours }}</td>
+            <td class="payroll-summary-value" data-summary="target-hours">{{ payroll_summary.target_hours }}</td>
+            <td class="payroll-summary-value" data-summary="variance">{{ payroll_summary.variance }}</td>
+          </tr>
+          <tr class="payroll-summary-row payroll-percent-row"><td colspan="9"></td><th class="payroll-summary-label" colspan="5">Current % to Target Hours</th><td class="payroll-summary-value" data-summary="current-percent">{{ payroll_summary.current_percent }}</td></tr>
+          <tr class="payroll-summary-row payroll-101-row"><td colspan="9"></td><th class="payroll-summary-label" colspan="5">Hours +/- to 101% Target</th><td class="payroll-summary-value" data-summary="variance-101">{{ payroll_summary.variance_101 }}</td></tr>
+          <tr class="payroll-summary-row payroll-95-row"><td colspan="9"></td><th class="payroll-summary-label" colspan="5">Hours +/- to 95% Target</th><td class="payroll-summary-value" data-summary="variance-95">{{ payroll_summary.variance_95 }}</td></tr>
+        </tfoot>
+      </table>
+    </div>
+    <button class="page-action primary payroll-save-button" type="submit">Save month</button>
+  </form>
 </section>
-<section class="panel">
-  <h2>Weekly tracker</h2>
-  {% if payroll_rows %}<div class="table-wrap"><table class="report-grid payroll-grid striped"><thead><tr>{% for column in payroll_columns %}<th>{{ column }}</th>{% endfor %}</tr></thead><tbody>{% for row in payroll_rows %}<tr class="{{ row.row_class|default:'' }}">{% for value in row.values %}<td{% if row.current_percent_class and forloop.counter0 == payroll_current_index %} class="{{ row.current_percent_class }}"{% endif %}>{{ value|default_if_none:"" }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">No payroll data yet.</p>{% endif %}
-</section>
+<script>
+  (() => {
+    const number = (row, name) => {
+      const value = Number.parseFloat(row.querySelector(`[name^="${name}_"]`)?.value);
+      return Number.isFinite(value) ? value : null;
+    };
+    const money = value => value == null ? '' : value.toLocaleString('en-US', {style: 'currency', currency: 'USD'});
+    const fixed = value => value == null ? '' : value.toFixed(2);
+    const percent = value => value == null ? '' : `${value.toFixed(2)}%`;
+    const recalculate = row => {
+      const plan = number(row, 'sales_plan');
+      const trend = number(row, 'trend_percent');
+      const actual = plan == null ? null : plan * (1 + (trend ?? 0) / 100);
+      const hours = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+        .reduce((sum, day) => sum + (number(row, day) ?? 0), 0);
+      const target = number(row, 'labor_target');
+      row.querySelector('[data-calculation="actual-sales"]').textContent = money(actual);
+      row.querySelector('[data-calculation="total-hours"]').textContent = fixed(hours);
+      row.querySelector('[data-calculation="variance"]').textContent = target == null ? '' : fixed(hours - target);
+    };
+    const recalculateSummary = () => {
+      let actual = 0, hours = 0, target = 0, hasActual = false, hasTarget = false;
+      document.querySelectorAll('.payroll-entry-grid tbody tr').forEach(row => {
+        const plan = number(row, 'sales_plan');
+        const trend = number(row, 'trend_percent');
+        if (plan != null) { actual += plan * (1 + (trend ?? 0) / 100); hasActual = true; }
+        ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => { hours += number(row, day) ?? 0; });
+        const rowTarget = number(row, 'labor_target');
+        if (rowTarget != null) { target += rowTarget; hasTarget = true; }
+      });
+      const set = (name, value) => { document.querySelector(`[data-summary="${name}"]`).textContent = value; };
+      set('actual-sales', hasActual ? money(actual) : '');
+      set('total-hours', fixed(hours));
+      set('target-hours', hasTarget ? fixed(target) : fixed(0));
+      set('variance', hasTarget ? fixed(hours - target) : fixed(0));
+      set('current-percent', target ? percent(hours / target * 100) : '');
+      set('variance-101', hasTarget ? fixed(target * 1.01 - hours) : fixed(0));
+      set('variance-95', hasTarget ? fixed(target * 0.95 - hours) : fixed(0));
+    };
+    document.querySelectorAll('.payroll-entry-grid tbody tr').forEach(row => {
+      row.querySelectorAll('input').forEach(input => input.addEventListener('input', () => { recalculate(row); recalculateSummary(); }));
+      recalculate(row);
+    });
+    recalculateSummary();
+  })();
+</script>
 {% endblock %}

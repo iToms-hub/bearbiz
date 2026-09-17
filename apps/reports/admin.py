@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import BonusClubSummary, GiftCardsSummary, PartiesSummary, PayrollSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from .models import BonusClubSummary, GiftCardsSummary, PartiesSummary, PayrollWeek, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
 
 
 @admin.register(ReportUpload)
@@ -40,11 +40,10 @@ class SegmentsSummaryAdmin(admin.ModelAdmin):
     search_fields = ("report_upload__source_name",)
 
 
-@admin.register(PayrollSummary)
-class PayrollSummaryAdmin(admin.ModelAdmin):
-    list_display = ("source_date", "source_week", "current_week", "report_upload", "created_at")
-    list_filter = ("current_week", "source_month")
-    search_fields = ("report_upload__source_name",)
+@admin.register(PayrollWeek)
+class PayrollWeekAdmin(admin.ModelAdmin):
+    list_display = ("fiscal_year", "fiscal_month", "fiscal_week", "sales_plan", "actual_sales", "total_hours_actual_scheduled", "current_variance")
+    list_filter = ("fiscal_year", "fiscal_month")
 
 
 @admin.register(PartiesSummary)

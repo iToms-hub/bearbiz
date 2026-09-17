@@ -19,10 +19,6 @@
     .metric + .metric { border-color: #82b9d4; background: #eaf7fc; }
     .metric-label { display: block; color: #4c5660; font-weight: bold; font-size: 9pt; }
     .metric-value { display: block; color: #1f516d; font-size: 18pt; font-weight: bold; margin-top: 0.04in; }
-    .payroll-metrics { display: table; width: 100%; table-layout: fixed; border-spacing: 0.08in 0; }
-    .payroll-metric { display: table-cell; width: 25%; text-align: center; border: 1px solid #9ab4c5; background: #f0f7fb; border-radius: 5px; padding: 0.1in; }
-    .payroll-label { display: block; color: #4c5660; font-weight: bold; font-size: 8pt; }
-    .payroll-value { display: block; color: #1f516d; font-size: 15pt; font-weight: bold; margin-top: 0.03in; }
     .message { color: #5d6670; }
     table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 7.5pt; }
     th, td { border: 1px solid #aeb8c0; padding: 0.06in 0.05in; text-align: center; vertical-align: top; overflow-wrap: anywhere; }
@@ -60,7 +56,7 @@
       {% elif module.type == 'bonus-club' or module.type == 'gift-card-bonus' %}
         <p>{{ module.value|default:"No persisted data" }}</p>
       {% elif module.type == 'payroll' %}
-        <div class="payroll-metrics"><div class="payroll-metric"><span class="payroll-label">Actual Hours</span><span class="payroll-value">{{ module.values.actual_hours|default:"—" }}</span></div><div class="payroll-metric"><span class="payroll-label">Target Hours</span><span class="payroll-value">{{ module.values.target_hours|default:"—" }}</span></div><div class="payroll-metric"><span class="payroll-label">Hours +/-</span><span class="payroll-value">{{ module.values.variance_hours|default:"—" }}</span></div><div class="payroll-metric"><span class="payroll-label">Actual vs Earned</span><span class="payroll-value">{{ module.values.actual_vs_earned|default:"—" }}</span></div></div>
+        {% if module.payroll %}<table><thead><tr><th>Actual Hours</th><th>Target Hours</th><th>Hours +/-</th><th>Percent to Target</th></tr></thead><tbody><tr><td>{{ module.payroll.total_hours }}</td><td>{{ module.payroll.target_hours }}</td><td>{{ module.payroll.variance }}</td><td>{{ module.payroll.percent }}</td></tr></tbody></table>{% else %}<p class="message">No Payroll data available.</p>{% endif %}
       {% elif module.type == 'parties' %}
         <p class="message">{{ module.message }}</p>
       {% else %}

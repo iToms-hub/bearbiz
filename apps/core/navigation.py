@@ -114,7 +114,6 @@ def report_upload_reminders() -> list[dict[str, Any]]:
     from apps.reports.models import (
         BonusClubSummary,
         GiftCardsSummary,
-        PayrollSummary,
         RankingSummary,
         SegmentsSummary,
         WeeklySalesSummary,
@@ -128,7 +127,6 @@ def report_upload_reminders() -> list[dict[str, Any]]:
         ("Segments", SegmentsSummary, "fiscal_period_end"),
         ("Gift Cards", GiftCardsSummary, "fiscal_period_end"),
         ("Bonus Club", BonusClubSummary, "fiscal_period_end"),
-        ("Payroll", PayrollSummary, "source_date"),
     )
     reminders: list[dict[str, Any]] = []
     for label, model, date_field in weekly_reports:

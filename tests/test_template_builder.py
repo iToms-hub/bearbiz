@@ -97,7 +97,6 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     assert "Page 1 of" in pdf_text
     pdf_template = (ROOT / "templates/reports/dashboard_review_pdf.html").read_text()
     assert "td.review-above-store" in pdf_template
-    assert ".payroll-metric { display: table-cell; width: 25%" in pdf_template
     assert "tbody tr.report-week-row-latest" in pdf_template
     assert "td.review-best-performance" in pdf_template
 
