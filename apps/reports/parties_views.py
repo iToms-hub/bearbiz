@@ -3,8 +3,10 @@ from __future__ import annotations
 import io
 from collections import defaultdict
 from datetime import date, timedelta
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import Any, Mapping
 
+from django.db import transaction
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -13,11 +15,89 @@ from django.views.decorators.http import require_POST
 from apps.core.navigation import shell_context
 from apps.core.models import FiscalYearSettings
 from .forms import ReportUploadForm
-from .models import PartiesSummary, ReportUpload
+from .models import PartiesSummary, PartiesWeek, ReportUpload
 from .modules.parties import PartiesReport
+from .payroll_views import _fiscal_year as payroll_fiscal_year
+from .payroll_views import payroll_month_labels, payroll_month_layout, payroll_week_ending
 
 
 HEADERS = ["Week", "Week Date", "TTL Parties Held TY", "TTL Parties Held LY", "Held +/-", "TTL Parties Booked TY", "TTL Parties Booked LY", "Booked +/-"]
+DIRECT_EDITABLE_FIELDS = {
+    "held_current": "held_current",
+    "held_previous": "held_previous",
+    "booked_current": "booked_current",
+    "booked_previous": "booked_previous",
+}
+
+
+def _direct_decimal(value: str) -> Decimal | None:
+    text = str(value or "").strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        parsed = Decimal(text)
+        if not parsed.is_finite():
+            raise ValueError("Enter a valid number.")
+        return parsed.quantize(Decimal("0.01"))
+    except InvalidOperation as exc:
+        raise ValueError("Enter a valid number.") from exc
+
+
+def _direct_display(value: Decimal | None) -> str:
+    return "" if value is None else f"{value:,.2f}"
+
+
+def _direct_total(rows: list[PartiesWeek]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for field in (*DIRECT_EDITABLE_FIELDS.values(), "held_variance", "booked_variance"):
+        values = [getattr(row, field) for row in rows if getattr(row, field) is not None]
+        result[field] = _direct_display(sum(values, Decimal("0"))) if values else ""
+    return result
+
+
+def _direct_totals(fiscal_year: int, month: int) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    rows = list(PartiesWeek.objects.filter(fiscal_year=fiscal_year, fiscal_month__lte=month))
+    month_rows = [row for row in rows if row.fiscal_month == month]
+    quarter_start = ((month - 1) // 3) * 3 + 1
+    quarter_rows = [row for row in rows if quarter_start <= row.fiscal_month <= month]
+    return _direct_total(month_rows), _direct_total(quarter_rows), _direct_total(rows)
+
+
+def parties_dashboard_summary() -> dict[str, object] | None:
+    fiscal_year = payroll_fiscal_year()
+    latest = PartiesWeek.objects.filter(fiscal_year=fiscal_year).order_by("-fiscal_week").first()
+    if latest is None:
+        return None
+    month_total, quarter_total, year_total = _direct_totals(fiscal_year, latest.fiscal_month)
+    headers = ["Period", "Held Current Year", "Held Previous Year", "Held +/-", "Booked Current Year", "Booked Previous Year", "Booked +/-"]
+    rows = [
+        {"values": ["Last Fiscal Week", _direct_display(latest.held_current), _direct_display(latest.held_previous), _direct_display(latest.held_variance), _direct_display(latest.booked_current), _direct_display(latest.booked_previous), _direct_display(latest.booked_variance)], "row_class": "review-parties-latest"},
+        {"values": ["Current Month", month_total["held_current"], month_total["held_previous"], month_total["held_variance"], month_total["booked_current"], month_total["booked_previous"], month_total["booked_variance"]], "row_class": "review-parties-period"},
+        {"values": ["Current Quarter", quarter_total["held_current"], quarter_total["held_previous"], quarter_total["held_variance"], quarter_total["booked_current"], quarter_total["booked_previous"], quarter_total["booked_variance"]], "row_class": "review-parties-period"},
+        {"values": ["Current Year", year_total["held_current"], year_total["held_previous"], year_total["held_variance"], year_total["booked_current"], year_total["booked_previous"], year_total["booked_variance"]], "row_class": "review-parties-year"},
+    ]
+    return {"headers": headers, "rows": rows, "latest_month": latest.fiscal_month, "latest_week": latest.fiscal_week}
+
+
+def _direct_context(fiscal_year: int, month: int, submitted: Mapping[str, str] | None = None) -> tuple[list[dict[str, str | int]], dict[str, str], dict[str, str], dict[str, str]]:
+    stored = {
+        row.fiscal_week: row
+        for row in PartiesWeek.objects.filter(fiscal_year=fiscal_year, fiscal_month=month)
+    }
+    rows: list[dict[str, str | int]] = []
+    for week in payroll_month_layout()[month]:
+        row = stored.get(week)
+        rows.append({
+            "week": week,
+            "week_ending": payroll_week_ending(fiscal_year, week).strftime("%m/%d/%y"),
+            "held_current": submitted.get(f"held_current_{week}", _direct_display(row.held_current if row else None)) if submitted is not None else _direct_display(row.held_current if row else None),
+            "held_previous": submitted.get(f"held_previous_{week}", _direct_display(row.held_previous if row else None)) if submitted is not None else _direct_display(row.held_previous if row else None),
+            "held_variance": _direct_display(row.held_variance if row else None),
+            "booked_current": submitted.get(f"booked_current_{week}", _direct_display(row.booked_current if row else None)) if submitted is not None else _direct_display(row.booked_current if row else None),
+            "booked_previous": submitted.get(f"booked_previous_{week}", _direct_display(row.booked_previous if row else None)) if submitted is not None else _direct_display(row.booked_previous if row else None),
+            "booked_variance": _direct_display(row.booked_variance if row else None),
+        })
+    return rows, *_direct_totals(fiscal_year, month)
 
 
 def _extract(upload: ReportUpload) -> str:
@@ -136,9 +216,50 @@ def _total_row(label: str, rows: list[dict[str, Any]], row_class: str) -> dict[s
 
 
 def index(request: HttpRequest) -> HttpResponse:
-    summary = PartiesSummary.objects.order_by("-fiscal_year", "-fiscal_week", "-id").first()
-    context = shell_context(section="parties", page_title="Parties", subtitle="Weekly parties held and booked by fiscal month.", parties_headers=HEADERS, parties_rows=_rows(summary) if summary else [], parties_summary=summary, upload_page_url="/parties/uploads/")
-    return render(request, "parties/index.html", context)
+    month = 1
+    try:
+        month = int(request.POST.get("month") or request.GET.get("month") or "1")
+    except ValueError:
+        month = 1
+    month = month if 1 <= month <= 12 else 1
+    fiscal_year = payroll_fiscal_year()
+    errors: list[str] = []
+
+    if request.method == "POST":
+        try:
+            with transaction.atomic():
+                for week in payroll_month_layout()[month]:
+                    values = {
+                        field: _direct_decimal(request.POST.get(f"{input_name}_{week}", ""))
+                        for input_name, field in DIRECT_EDITABLE_FIELDS.items()
+                    }
+                    if not any(value is not None for value in values.values()):
+                        PartiesWeek.objects.filter(fiscal_year=fiscal_year, fiscal_week=week).delete()
+                        continue
+                    PartiesWeek.objects.update_or_create(
+                        fiscal_year=fiscal_year,
+                        fiscal_week=week,
+                        defaults={"fiscal_month": month, **values},
+                    )
+        except ValueError as exc:
+            errors.append(str(exc))
+        else:
+            return redirect(f"/parties/?month={month}")
+
+    parties_rows, parties_total, parties_quarter_total, parties_year_total = _direct_context(fiscal_year, month, request.POST if errors else None)
+    context = shell_context(
+        section="parties",
+        page_title="Parties",
+        subtitle="Enter weekly parties held and booked by fiscal month.",
+        parties_tabs=[{"number": number, "label": label} for number, label in payroll_month_labels(fiscal_year).items()],
+        selected_parties_month=month,
+        parties_rows=parties_rows,
+        parties_total=parties_total,
+        parties_quarter_total=parties_quarter_total,
+        parties_year_total=parties_year_total,
+        parties_errors=errors,
+    )
+    return render(request, "parties/index.html", context, status=400 if errors else 200)
 
 
 def upload_page(request: HttpRequest) -> HttpResponse:

@@ -182,6 +182,8 @@ def test_payroll_is_available_on_dashboard_and_review_with_authoritative_week(cl
     assert "75.00" in dashboard_html
     assert "-5.00" in dashboard_html
     assert "93.8%" in dashboard_html
+    assert ".dashboard-card-payroll h2 { color: #000; }" in dashboard_html
+    assert ".payroll-dashboard-details strong { display: block; color: #2563eb;" in dashboard_html
 
     template = ReviewTemplate.objects.create(name="Payroll review", layout=[{"type": "payroll", "title": "Last Week Payroll"}])
     review = client.get(reverse("dashboard-review"), {"template": template.pk})

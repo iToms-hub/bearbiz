@@ -82,14 +82,13 @@ def test_parties_upload_history_and_rollup_view(tmp_path: Path) -> None:
     with override_settings(MEDIA_ROOT=media_root):
         html = client.get(reverse("parties")).content.decode()
     assert "Parties" in html
-    assert "TTL Parties Held" in html
-    assert "Comp Parties Held" not in html
-    assert "Status" not in html
-    assert "TTL Parties Booked" in html
-    assert "Month Totals" in html
-    assert "Quarter Totals" in html
-    assert "Fiscal Year Total" in html
+    assert "Parties Held" in html
+    assert "Parties Booked" in html
+    assert "Current Year" in html
+    assert "Previous Year" in html
+    assert "Save month" in html
     assert 'name="fiscal_month"' not in html
+    assert PartiesSummary.objects.filter(pk=summary.pk).exists()
 
 
 def test_parties_headers_hide_status_and_comp_columns() -> None:

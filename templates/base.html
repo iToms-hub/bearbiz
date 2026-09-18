@@ -455,7 +455,51 @@
       .dashboard-card-gift .dashboard-metric-value { color: #7c3aed; }
       .payroll-heading { display: block; }
       .payroll-month-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.18rem; margin: 0.15rem 0 0.55rem; }
-      .payroll-month-tabs .tab { min-width: 3.55rem; padding: 0.22rem 0.5rem; display: inline-flex; justify-content: center; align-items: center; text-align: center; line-height: 1; }
+      .product-ranking-grid, .review-product-top10-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+      .product-upload-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; align-items: end; }
+      .product-upload-toolbar .product-upload-form { min-width: 0; }
+      .product-week-selector { align-self: end; }
+      .product-lookup-form { display: grid; gap: 0.35rem; max-width: 42rem; }
+      .product-lookup-controls { display: flex; gap: 0.5rem; align-items: center; }
+      .product-lookup-controls input { min-width: 0; flex: 1; }
+      .product-lookup-results { margin-top: 1rem; }
+      .product-lookup-table { max-width: 42rem; }
+      .product-lookup-table th, .product-lookup-table td { padding: 0.35rem 0.45rem; }
+      .product-lookup-table th:nth-child(1), .product-lookup-table td:nth-child(1) { width: 50%; }
+      .product-lookup-table th:nth-child(2), .product-lookup-table td:nth-child(2) { width: 25%; text-align: right; }
+      .product-lookup-table th:nth-child(3), .product-lookup-table td:nth-child(3) { width: 25%; text-align: right; }
+      .review-product-top10-grid { min-width: 0; }
+      .review-product-top10-grid > div { min-width: 0; overflow: hidden; }
+      .review-product-top10-grid table { width: 100%; table-layout: fixed; font-size: 0.68rem; }
+      .review-product-top10-grid th, .review-product-top10-grid td { padding: 0.24rem 0.2rem; overflow-wrap: anywhere; line-height: 1.15; }
+      .review-product-top10-grid th:nth-child(1), .review-product-top10-grid td:nth-child(1) { width: 8%; text-align: center; }
+      .review-product-top10-grid th:nth-child(2), .review-product-top10-grid td:nth-child(2) { width: 15%; }
+      .review-product-top10-grid th:nth-child(3), .review-product-top10-grid td:nth-child(3) { width: 35%; }
+      .review-product-top10-grid th:nth-child(4), .review-product-top10-grid td:nth-child(4) { width: 25%; }
+      .review-product-top10-grid th:nth-child(5), .review-product-top10-grid td:nth-child(5) { width: 17%; text-align: right; }
+      .product-ranking-table { width: 100%; table-layout: fixed; font-size: 0.78rem; }
+      .product-ranking-table th, .product-ranking-table td { padding: 0.35rem 0.3rem; overflow-wrap: anywhere; }
+      .product-ranking-table th:nth-child(1), .product-ranking-table td:nth-child(1) { width: 9%; text-align: center; }
+      .product-ranking-table th:nth-child(2), .product-ranking-table td:nth-child(2) { width: 18%; }
+      .product-ranking-table th:nth-child(3), .product-ranking-table td:nth-child(3) { width: 35%; }
+      .product-ranking-table th:nth-child(4), .product-ranking-table td:nth-child(4) { width: 23%; }
+      .product-ranking-table th:nth-child(5), .product-ranking-table td:nth-child(5) { width: 15%; text-align: right; }
+      .product-ranking-table tbody tr.product-special-row, .review-product-top10-grid tbody tr.product-special-row { border-top: 2px solid var(--border); background: color-mix(in srgb, var(--accent) 10%, var(--card)); font-weight: 700; }
+      .product-ranking-table tbody tr.product-special-row td, .review-product-top10-grid tbody tr.product-special-row td { border-top: 2px solid var(--border); }
+      @media (max-width: 900px) { .product-ranking-grid, .review-product-top10-grid { grid-template-columns: 1fr; } .product-upload-toolbar { grid-template-columns: 1fr; } .product-week-selector { justify-self: start; } }
+      .parties-month-tabs { margin-top: 0.55rem; }
+      .parties-table-wrap { width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden; }
+      .parties-entry-grid { width: 100%; min-width: 0; table-layout: fixed; font-size: 0.72rem; }
+      .parties-entry-grid th, .parties-entry-grid td { padding: 0.28rem 0.2rem; text-align: center; vertical-align: middle; white-space: normal; overflow-wrap: anywhere; }
+      .parties-entry-grid th:nth-child(1), .parties-entry-grid td:nth-child(1) { width: 6%; }
+      .parties-entry-grid th:nth-child(2), .parties-entry-grid td:nth-child(2) { width: 12%; }
+      .parties-entry-grid th:nth-child(n+3):nth-child(-n+8), .parties-entry-grid td:nth-child(n+3):nth-child(-n+8) { width: 13.67%; }
+      .parties-entry-grid input { display: block; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; padding: 0.25rem 0.18rem; text-align: right; font-size: 0.72rem; }
+      .parties-entry-grid .parties-week-ending { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow-wrap: normal; }
+      .parties-total-row th, .parties-total-row td, .parties-quarter-total-row th, .parties-quarter-total-row td, .parties-year-total-row th, .parties-year-total-row td { background: color-mix(in srgb, var(--accent) 11%, Canvas); font-weight: 700; border-top: 2px solid color-mix(in srgb, var(--accent) 55%, var(--border)); font-variant-numeric: tabular-nums; }
+      .parties-quarter-total-row th, .parties-quarter-total-row td { background: color-mix(in srgb, var(--accent) 7%, Canvas); border-top-width: 1px; }
+      .parties-year-total-row th, .parties-year-total-row td { background: color-mix(in srgb, var(--accent) 15%, Canvas); }
+      .parties-save-row { display: flex; justify-content: flex-start; margin-top: 1rem; }
       .payroll-table-wrap { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; overflow-y: hidden; }
       .payroll-entry-grid { width: 100%; min-width: 0; table-layout: fixed; font-size: 0.61rem; }
       .payroll-entry-grid th, .payroll-entry-grid td { padding: 0.18rem 0.12rem; text-align: center; vertical-align: middle; white-space: normal; overflow-wrap: anywhere; }
@@ -475,7 +519,7 @@
       .payroll-entry-grid .payroll-total-row td { background: color-mix(in srgb, var(--accent) 11%, Canvas); font-weight: 700; border-top: 2px solid color-mix(in srgb, var(--accent) 55%, var(--border)); }
       .payroll-entry-grid .payroll-summary-value { font-variant-numeric: tabular-nums; }
       .payroll-entry-grid .payroll-summary-label { white-space: normal; overflow-wrap: anywhere; text-align: right; line-height: 1.15; }
-      .dashboard-card-payroll h2 { color: #fff; }
+      .dashboard-card-payroll h2 { color: #000; }
       .payroll-dashboard-details, .review-payroll-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; text-align: center; }
       .payroll-dashboard-details div, .review-payroll-metrics div { min-width: 0; padding: 0 0.22rem; }
       .payroll-dashboard-details div + div, .review-payroll-metrics div + div { border-left: 1px solid color-mix(in srgb, var(--border) 85%, var(--foreground)); }

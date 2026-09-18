@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Product{% endblock %}
+{% block content %}
+<section class="panel stack">
+  <header class="section-header"><div><h2>Product</h2></div></header>
+  <div class="product-upload-toolbar">
+    <form method="post" enctype="multipart/form-data" class="upload-form product-upload-form">
+      {% csrf_token %}<label for="{{ product_form.source_file.id_for_label }}">Upload weekly Top 20 Items report</label>
+      <div class="upload-file-row">{{ product_form.source_file }}<button class="page-action primary" type="submit">Upload</button></div>
+      {% for error in product_errors %}<p class="error" role="alert">{{ error }}</p>{% endfor %}
+    </form>
+    <form method="get" class="inline-form product-week-selector">
+      <label for="product-week">Fiscal week</label>
+      <select id="product-week" name="week" onchange="this.form.submit()">
+        {% for report in product_weeks %}<option value="{{ report.fiscal_week }}"{% if report.fiscal_week == selected_product_week %} selected{% endif %}>FY{{ report.fiscal_year }} · Week {{ report.fiscal_week }} · {{ report.period_start|date:"m/d/y" }}–{{ report.period_end|date:"m/d/y" }}</option>{% empty %}<option>No parsed weeks yet</option>{% endfor %}
+      </select>
+    </form>
+  </div>
+  <form method="get" class="product-lookup-form">
+    <label for="product-lookup">Item number or department</label>
+    <div class="product-lookup-controls"><input id="product-lookup" name="lookup" value="{{ request.GET.lookup|default:'' }}" placeholder="e.g. 035164 or Friend"><button class="page-action" type="submit">Lookup</button></div>
+  </form>
+</section>
+{% if product_lookup_data %}
+<section class="panel stack product-lookup-results">
+  <header class="section-header"><div><h2>{{ product_lookup_data.title }}</h2><p class="muted">Fiscal rollups through FY{{ product_lookup_data.fiscal_year }} Week {{ product_lookup_data.fiscal_week }}</p></div></header>
+  {% if product_lookup_data.found %}<div class="table-wrap"><table class="report-grid striped product-lookup-table"><thead><tr><th>Period</th><th>Units Sold</th><th>Net Sales</th></tr></thead><tbody>{% for period in product_lookup_data.periods %}<tr><td>{{ period.label }}</td><td>{{ period.units_sold|floatformat:0 }}</td><td>${{ period.net_sales|floatformat:2 }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">No matching item number or department was found.</p>{% endif %}
+</section>
+{% endif %}
+<section class="product-ranking-grid">
+  <section class="panel stack product-ranking-panel"><h2>Top 10 by Units Sold</h2>{% if product_units_rows %}<div class="table-wrap"><table class="report-grid striped product-ranking-table"><thead><tr><th>Rank</th><th>Item Number</th><th>Item Description</th><th>Department</th><th>Units Sold</th></tr></thead><tbody>{% for row in product_units_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>{{ row.value }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ product_reusable_backpacks.label }}</td><td>{{ product_reusable_backpacks.department }}</td><td>{{ product_reusable_backpacks.units_sold }}</td></tr></tbody></table></div>{% else %}<p class="muted">Upload a parsed Product report to see results.</p>{% endif %}</section>
+  <section class="panel stack product-ranking-panel"><h2>Top 10 by Net Sales</h2>{% if product_sales_rows %}<div class="table-wrap"><table class="report-grid striped product-ranking-table"><thead><tr><th>Rank</th><th>Item Number</th><th>Item Description</th><th>Department</th><th>Net Sales</th></tr></thead><tbody>{% for row in product_sales_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>${{ row.value|floatformat:2 }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ product_reusable_backpacks.label }}</td><td>{{ product_reusable_backpacks.department }}</td><td>${{ product_reusable_backpacks.net_sales|floatformat:2 }}</td></tr></tbody></table></div>{% else %}<p class="muted">No Product week selected.</p>{% endif %}</section>
+</section>
+{% endblock %}

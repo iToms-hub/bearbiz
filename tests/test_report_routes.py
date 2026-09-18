@@ -86,7 +86,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert 'class="upload-file-row"' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.1.7' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.1.8' in history_html
         assert "Uploaded reports" in history_html
         assert "Settings" in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
@@ -321,7 +321,7 @@ def test_dashboard_shows_last_four_ranking_reports(client: Client, tmp_path: Pat
 
 
 @pytest.mark.django_db()
-def test_dashboard_shows_last_four_segment_reports_with_managers(client: Client, tmp_path: Path) -> None:
+def test_dashboard_shows_last_segment_report_with_managers(client: Client, tmp_path: Path) -> None:
     media_root = tmp_path / "media"
     media_root.mkdir()
 
@@ -401,12 +401,13 @@ def test_dashboard_shows_last_four_segment_reports_with_managers(client: Client,
     html = response.content.decode()
     assert "Segment Accountability" in html
     assert "Avery" not in html
-    assert "Bailey" in html
-    assert "Casey" in html
-    assert "Drew" in html
+    assert "Bailey" not in html
+    assert "Casey" not in html
+    assert "Drew" not in html
     assert "Emery" in html
+    assert "Emery Alt" in html
     assert "report-grid-associate" in html
-    assert html.count('class="report-week-row"') >= 4
+    assert html.count('class="report-week-row"') == 2
 
 
 @pytest.mark.django_db()
@@ -517,7 +518,7 @@ def test_dashboard_shows_last_week_store_bonus_club_and_gift_cards_metrics(clien
     assert 'class="panel dashboard-card dashboard-card-bonus stack"' in html
     assert ".dashboard-card h2 {" in html
     assert "font-size: 1.17rem;" in html
-    assert ".dashboard-card-payroll h2 { color: #fff; }" in html
+    assert ".dashboard-card-payroll h2 { color: #000; }" in html
     assert "grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0" in html
     assert "border-left: 1px solid color-mix" in html
     assert "font-size: 1.65rem" in html
@@ -1307,7 +1308,7 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         assert 'Select a PDF' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.1.7' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.1.8' in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
         assert 'aria-label="Section tabs"' not in history_html
 

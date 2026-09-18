@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import BonusClubSummary, GiftCardsSummary, PartiesSummary, PayrollWeek, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from .models import BonusClubSummary, GiftCardsSummary, PartiesSummary, PartiesWeek, PayrollWeek, ProductItem, ProductReport, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
 
 
 @admin.register(ReportUpload)
@@ -50,3 +50,22 @@ class PayrollWeekAdmin(admin.ModelAdmin):
 class PartiesSummaryAdmin(admin.ModelAdmin):
     list_display = ("fiscal_year", "fiscal_week", "report_upload", "created_at")
     search_fields = ("report_upload__source_name",)
+
+
+@admin.register(ProductReport)
+class ProductReportAdmin(admin.ModelAdmin):
+    list_display = ("fiscal_year", "fiscal_week", "store_number", "row_count", "parse_status", "period_end")
+    list_filter = ("fiscal_year", "parse_status")
+
+
+@admin.register(ProductItem)
+class ProductItemAdmin(admin.ModelAdmin):
+    list_display = ("report", "department", "department_rank", "item_number", "item_description", "units_sold", "net_sales")
+    list_filter = ("department",)
+    search_fields = ("item_number", "item_description")
+
+
+@admin.register(PartiesWeek)
+class PartiesWeekAdmin(admin.ModelAdmin):
+    list_display = ("fiscal_year", "fiscal_month", "fiscal_week", "held_current", "held_previous", "booked_current", "booked_previous")
+    list_filter = ("fiscal_year", "fiscal_month")

@@ -247,6 +247,39 @@ class SegmentsSummary(models.Model):
         return self.raw_json
 
 
+class ProductReport(models.Model):
+    """Structured weekly Top Items report metadata; source PDFs are not retained."""
+
+    fiscal_year = models.PositiveSmallIntegerField()
+    fiscal_week = models.PositiveSmallIntegerField()
+    store_number = models.CharField(max_length=32, blank=True)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    source_name = models.CharField(max_length=255)
+    parse_status = models.CharField(max_length=16, choices=ParseStatus.choices, default=ParseStatus.PENDING)
+    parse_error = models.TextField(blank=True)
+    row_count = models.PositiveIntegerField(default=0)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    parsed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-fiscal_year", "-fiscal_week"]
+        constraints = [models.UniqueConstraint(fields=["fiscal_year", "fiscal_week"], name="unique_product_report_fiscal_period")]
+
+
+class ProductItem(models.Model):
+    report = models.ForeignKey(ProductReport, on_delete=models.CASCADE, related_name="items")
+    department = models.CharField(max_length=120)
+    department_rank = models.PositiveSmallIntegerField()
+    item_number = models.CharField(max_length=32)
+    item_description = models.CharField(max_length=255)
+    units_sold = models.DecimalField(max_digits=12, decimal_places=2)
+    net_sales = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ["department", "department_rank", "item_number"]
+
+
 class PartiesSummary(models.Model):
     """Source-faithful weekly parties report, including raw metric cells."""
 
@@ -264,6 +297,40 @@ class PartiesSummary(models.Model):
 
     def __str__(self) -> str:
         return f"Parties FY{self.fiscal_year} W{self.fiscal_week:02d}"
+
+
+class PartiesWeek(models.Model):
+    """Directly entered weekly Parties values for the configured fiscal year."""
+
+    fiscal_year = models.PositiveSmallIntegerField()
+    fiscal_month = models.PositiveSmallIntegerField()
+    fiscal_week = models.PositiveSmallIntegerField()
+    held_current = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    held_previous = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    booked_current = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    booked_previous = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["fiscal_year", "fiscal_week"]
+        constraints = [
+            models.UniqueConstraint(fields=["fiscal_year", "fiscal_week"], name="unique_parties_week")
+        ]
+        verbose_name = "parties week"
+        verbose_name_plural = "parties weeks"
+
+    @property
+    def held_variance(self) -> Decimal | None:
+        if self.held_current is None or self.held_previous is None:
+            return None
+        return (self.held_current - self.held_previous).quantize(Decimal("0.01"))
+
+    @property
+    def booked_variance(self) -> Decimal | None:
+        if self.booked_current is None or self.booked_previous is None:
+            return None
+        return (self.booked_current - self.booked_previous).quantize(Decimal("0.01"))
 
 
 class PayrollWeek(models.Model):

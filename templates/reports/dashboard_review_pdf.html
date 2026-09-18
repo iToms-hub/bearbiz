@@ -22,11 +22,23 @@
     .message { color: #5d6670; }
     table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 7.5pt; }
     th, td { border: 1px solid #aeb8c0; padding: 0.06in 0.05in; text-align: center; vertical-align: top; overflow-wrap: anywhere; }
+    .product-review-tables { width: 100%; table-layout: fixed; border: 0; font-size: 6.5pt; }
+    .product-review-tables > tbody > tr > td { width: 50%; border: 0; padding: 0 0.04in 0 0; vertical-align: top; }
+    .product-review-tables > tbody > tr > td + td { padding: 0 0 0 0.04in; }
+    .product-review-tables .report-grid { width: 100%; table-layout: fixed; font-size: 6.5pt; }
+    .product-review-tables .report-grid th, .product-review-tables .report-grid td { padding: 0.035in 0.025in; line-height: 1.1; overflow-wrap: anywhere; }
+    .product-review-tables .report-grid th:nth-child(1), .product-review-tables .report-grid td:nth-child(1) { width: 8%; }
+    .product-review-tables .report-grid th:nth-child(2), .product-review-tables .report-grid td:nth-child(2) { width: 15%; }
+    .product-review-tables .report-grid th:nth-child(3), .product-review-tables .report-grid td:nth-child(3) { width: 35%; }
+    .product-review-tables .report-grid th:nth-child(4), .product-review-tables .report-grid td:nth-child(4) { width: 25%; }
+    .product-review-tables .report-grid th:nth-child(5), .product-review-tables .report-grid td:nth-child(5) { width: 17%; }
+    .product-review-tables .report-grid tbody tr.product-special-row { border-top: 1.5pt solid #71808c; background: #eef4f8; font-weight: bold; }
     th { background: #edf1f3; font-weight: bold; }
     tbody tr.report-summary-row { background: #e8f1ff; font-weight: bold; }
     tbody tr.report-summary-month { background: #e4f0ff; }
     tbody tr.report-summary-quarter { background: #dceaff; }
-    tbody tr.report-summary-year, tbody tr.report-summary-trend { background: #d2e3ff; font-weight: bold; }
+    table.report-grid.striped tbody tr.review-parties-latest { background: #eef8f0; font-weight: 600; }
+    table.report-grid.striped tbody tr.review-parties-year { background: #eaf1fb; font-weight: bold; border-top: 1.5pt solid #9aafc7; }
     tbody tr.report-week-row-latest { background: #e2f3e6; font-weight: 650; }
     td.review-above-store { background: #d1fae5; font-weight: bold; }
     td.review-best-performance { background: #d1fae5; font-weight: bold; }
@@ -57,8 +69,8 @@
         <p>{{ module.value|default:"No persisted data" }}</p>
       {% elif module.type == 'payroll' %}
         {% if module.payroll %}<table><thead><tr><th>Actual Hours</th><th>Target Hours</th><th>Hours +/-</th><th>Percent to Target</th></tr></thead><tbody><tr><td>{{ module.payroll.total_hours }}</td><td>{{ module.payroll.target_hours }}</td><td>{{ module.payroll.variance }}</td><td>{{ module.payroll.percent }}</td></tr></tbody></table>{% else %}<p class="message">No Payroll data available.</p>{% endif %}
-      {% elif module.type == 'parties' %}
-        <p class="message">{{ module.message }}</p>
+      {% elif module.type == 'product-top-10' %}
+        {% if module.units_rows %}<p>Fiscal Year {{ module.latest_year }}, Week {{ module.latest_week }}</p><table class="product-review-tables"><tr><td><h3>Top 10 by Units Sold</h3><table class="report-grid striped"><thead><tr><th>Rank</th><th>Item</th><th>Description</th><th>Department</th><th>Units</th></tr></thead><tbody>{% for row in module.units_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>{{ row.value }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ module.reusable_backpacks.label }}</td><td>{{ module.reusable_backpacks.department }}</td><td>{{ module.reusable_backpacks.units_sold }}</td></tr></tbody></table></td><td><h3>Top 10 by Net Sales</h3><table class="report-grid striped"><thead><tr><th>Rank</th><th>Item</th><th>Description</th><th>Department</th><th>Net Sales</th></tr></thead><tbody>{% for row in module.sales_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>{{ row.value }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ module.reusable_backpacks.label }}</td><td>{{ module.reusable_backpacks.department }}</td><td>${{ module.reusable_backpacks.net_sales|floatformat:2 }}</td></tr></tbody></table></td></tr></table>{% else %}<p class="message">{{ module.message }}</p>{% endif %}
       {% else %}
         {% include "reports/review_table.html" with headers=module.headers rows=module.rows %}
       {% endif %}

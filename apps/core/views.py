@@ -72,6 +72,7 @@ REVIEW_MODULES = [
     ("weekly-sales-trend", "Weekly Sales Trend · Last 6 Weeks"),
     ("segments", "Last Week Segments"),
     ("parties", "Last Week Parties"),
+    ("product-top-10", "Product Top 10 · Latest Fiscal Week"),
     ("rankings", "Rankings · Last 5 Weeks"),
     ("notes", "Notes"),
 ]

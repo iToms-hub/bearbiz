@@ -102,7 +102,7 @@ def test_dashboard_subnav_has_foldable_css_and_behavior() -> None:
 @pytest.mark.django_db()
 @pytest.mark.parametrize(
     ("name", "feature"),
-    [("missed-ops", "Missed Ops"), ("product", "Product")],
+    [("missed-ops", "Missed Ops")],
 )
 def test_coming_soon_pages_are_explicit_and_active(name: str, feature: str) -> None:
     response = Client().get(reverse(name))
@@ -116,6 +116,21 @@ def test_coming_soon_pages_are_explicit_and_active(name: str, feature: str) -> N
     assert f'aria-label="{feature}"' in html
     assert 'class="active"' in html
     assert f'src="/static/images/bearbiz-{name}.png"' in html
+
+
+@pytest.mark.django_db()
+def test_product_page_replaces_coming_soon_surface() -> None:
+    response = Client().get(reverse("product"))
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert ">Product<" in html
+    assert "Upload weekly Top 20 Items report" in html
+    assert "Top 10 by Units Sold" in html
+    assert "Top 10 by Net Sales" in html
+    assert "Coming soon" not in html
+    assert 'class="active"' in html
+    assert 'src="/static/images/bearbiz-product.png"' in html
 
 
 @pytest.mark.parametrize("remote", [b"0.9.0", b"0.8.9"])

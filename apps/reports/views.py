@@ -35,6 +35,8 @@ from .modules.segments import SegmentsReport
 from .modules.weekly_sales import WeeklySalesReport
 from .registry import get
 from .payroll_views import payroll_dashboard_summary
+from .parties_views import parties_dashboard_summary
+from .product_views import product_dashboard_summary
 
 REPORTS = {number: config for number in range(1, 7) if (config := report_config(number))}
 
@@ -55,7 +57,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     ranking_summaries = _dashboard_ranking_summaries(limit=4)
     ranking_headers = _ranking_report_headers()
     ranking_rows = _ranking_report_rows(ranking_summaries)
-    segment_summaries = _dashboard_segment_summaries(limit=4)
+    segment_summaries = _dashboard_segment_summaries(limit=1)
     segment_headers = _segments_report_headers()
     segment_rows = _dashboard_segment_rows(segment_summaries)
     context = shell_context(
@@ -157,7 +159,8 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
         "payroll": {"payroll": payroll_dashboard_summary()},
         "weekly-sales-trend": {"headers": _weekly_report_headers(), "rows": _weekly_report_rows(weekly) + _dashboard_trend_rows(weekly)},
         "segments": {"headers": _segments_report_headers(), "rows": _dashboard_segment_rows(segment)},
-        "parties": {"message": "No persisted Parties summary is available."},
+        "parties": parties_dashboard_summary() or {"message": "No direct Parties data is available."},
+        "product-top-10": product_dashboard_summary() or {"message": "No parsed Product data is available."},
         "rankings": {"headers": _ranking_report_headers(), "rows": _ranking_report_rows(ranking)},
     }
     review_render_modules = []

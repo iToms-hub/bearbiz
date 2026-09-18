@@ -2,10 +2,129 @@
 {% block title %}Parties{% endblock %}
 {% block content %}
 <section class="panel stack">
-  <header class="section-header"><div><h2>Parties</h2><p class="muted">Weekly parties held and booked by fiscal month.</p></div><a class="page-action upload-action" href="{{ upload_page_url }}">Uploads</a></header>
+  <header class="section-header">
+    <div><h2>Parties</h2><p class="muted">Enter weekly parties held and booked by fiscal month.</p></div>
+  </header>
+  <nav class="payroll-month-tabs parties-month-tabs" aria-label="Parties fiscal months">
+    {% for tab in parties_tabs %}
+      <a class="tab{% if tab.number == selected_parties_month %} active{% endif %}" data-parties-month-tab="{{ tab.number }}" href="?month={{ tab.number }}">{{ tab.label }}</a>
+    {% endfor %}
+  </nav>
+  {% for error in parties_errors %}<p class="error" role="alert">{{ error }}</p>{% endfor %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="month" value="{{ selected_parties_month }}">
+    <div class="table-wrap parties-table-wrap">
+      <table class="report-grid parties-entry-grid striped">
+        <thead>
+          <tr>
+            <th rowspan="2">Week</th><th rowspan="2">Week Ending</th>
+            <th colspan="3">Parties Held</th><th colspan="3">Parties Booked</th>
+          </tr>
+          <tr>
+            <th>Current Year</th><th>Previous Year</th><th>+/-</th>
+            <th>Current Year</th><th>Previous Year</th><th>+/-</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in parties_rows %}
+          <tr>
+            <td>{{ row.week }}</td><td class="parties-week-ending">{{ row.week_ending }}</td>
+            <td><input name="held_current_{{ row.week }}" value="{{ row.held_current }}" inputmode="decimal" aria-label="Week {{ row.week }} held current year"></td>
+            <td><input name="held_previous_{{ row.week }}" value="{{ row.held_previous }}" inputmode="decimal" aria-label="Week {{ row.week }} held previous year"></td>
+            <td data-parties-calculation="held-variance">{{ row.held_variance }}</td>
+            <td><input name="booked_current_{{ row.week }}" value="{{ row.booked_current }}" inputmode="decimal" aria-label="Week {{ row.week }} booked current year"></td>
+            <td><input name="booked_previous_{{ row.week }}" value="{{ row.booked_previous }}" inputmode="decimal" aria-label="Week {{ row.week }} booked previous year"></td>
+            <td data-parties-calculation="booked-variance">{{ row.booked_variance }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="parties-total-row">
+            <th colspan="2">Total</th>
+            <td data-parties-summary="held_current">{{ parties_total.held_current }}</td>
+            <td data-parties-summary="held_previous">{{ parties_total.held_previous }}</td>
+            <td data-parties-summary="held_variance">{{ parties_total.held_variance }}</td>
+            <td data-parties-summary="booked_current">{{ parties_total.booked_current }}</td>
+            <td data-parties-summary="booked_previous">{{ parties_total.booked_previous }}</td>
+            <td data-parties-summary="booked_variance">{{ parties_total.booked_variance }}</td>
+          </tr>
+          <tr class="parties-summary-row parties-quarter-total-row">
+            <th colspan="2">Quarter Totals</th>
+            <td data-parties-summary="quarter-held_current">{{ parties_quarter_total.held_current }}</td>
+            <td data-parties-summary="quarter-held_previous">{{ parties_quarter_total.held_previous }}</td>
+            <td data-parties-summary="quarter-held_variance">{{ parties_quarter_total.held_variance }}</td>
+            <td data-parties-summary="quarter-booked_current">{{ parties_quarter_total.booked_current }}</td>
+            <td data-parties-summary="quarter-booked_previous">{{ parties_quarter_total.booked_previous }}</td>
+            <td data-parties-summary="quarter-booked_variance">{{ parties_quarter_total.booked_variance }}</td>
+          </tr>
+          <tr class="parties-summary-row parties-year-total-row">
+            <th colspan="2">Year Totals</th>
+            <td data-parties-summary="year-held_current">{{ parties_year_total.held_current }}</td>
+            <td data-parties-summary="year-held_previous">{{ parties_year_total.held_previous }}</td>
+            <td data-parties-summary="year-held_variance">{{ parties_year_total.held_variance }}</td>
+            <td data-parties-summary="year-booked_current">{{ parties_year_total.booked_current }}</td>
+            <td data-parties-summary="year-booked_previous">{{ parties_year_total.booked_previous }}</td>
+            <td data-parties-summary="year-booked_variance">{{ parties_year_total.booked_variance }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="parties-save-row"><button class="page-action primary parties-save-button" type="submit">Save month</button></div>
+  </form>
 </section>
-<section class="panel">
-  <h2>Parties report</h2>
-  {% if parties_rows %}<div class="table-wrap"><table class="report-grid parties-grid striped"><thead><tr>{% for header in parties_headers %}<th>{{ header }}</th>{% endfor %}</tr></thead><tbody>{% for row in parties_rows %}<tr class="{{ row.row_class }}">{% for value in row.values %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">No parties data yet.</p>{% endif %}
-</section>
+<script>
+(() => {
+  const rows = [...document.querySelectorAll('.parties-entry-grid tbody tr')];
+  const number = (row, name) => {
+    const field = row.querySelector(`[name^="${name}_"]`);
+    if (!field || field.value.trim() === '') return null;
+    const value = Number(field.value.replace(/,/g, ''));
+    return Number.isFinite(value) ? value : null;
+  };
+  const fixed = value => value == null ? '' : value.toFixed(2);
+  const recalculate = row => {
+    const heldCurrent = number(row, 'held_current');
+    const heldPrevious = number(row, 'held_previous');
+    const bookedCurrent = number(row, 'booked_current');
+    const bookedPrevious = number(row, 'booked_previous');
+    row.querySelector('[data-parties-calculation="held-variance"]').textContent = heldCurrent == null || heldPrevious == null ? '' : fixed(heldCurrent - heldPrevious);
+    row.querySelector('[data-parties-calculation="booked-variance"]').textContent = bookedCurrent == null || bookedPrevious == null ? '' : fixed(bookedCurrent - bookedPrevious);
+  };
+  const summaryCells = [...document.querySelectorAll('[data-parties-summary]')];
+  const initialSummary = Object.fromEntries(summaryCells.map(cell => [cell.dataset.partiesSummary, Number.isFinite(Number(cell.textContent.replace(/,/g, ''))) && cell.textContent.trim() !== '' ? Number(cell.textContent.replace(/,/g, '')) : null]));
+  const metricKeys = ['held_current', 'held_previous', 'held_variance', 'booked_current', 'booked_previous', 'booked_variance'];
+  const recalculateSummary = () => {
+    const totals = Object.fromEntries(metricKeys.map(key => [key, 0]));
+    const present = Object.fromEntries(metricKeys.map(key => [key, false]));
+    rows.forEach(row => {
+      const heldCurrent = number(row, 'held_current');
+      const heldPrevious = number(row, 'held_previous');
+      const bookedCurrent = number(row, 'booked_current');
+      const bookedPrevious = number(row, 'booked_previous');
+      if (heldCurrent != null) { totals.held_current += heldCurrent; present.held_current = true; }
+      if (heldPrevious != null) { totals.held_previous += heldPrevious; present.held_previous = true; }
+      if (heldCurrent != null && heldPrevious != null) { totals.held_variance += heldCurrent - heldPrevious; present.held_variance = true; }
+      if (bookedCurrent != null) { totals.booked_current += bookedCurrent; present.booked_current = true; }
+      if (bookedPrevious != null) { totals.booked_previous += bookedPrevious; present.booked_previous = true; }
+      if (bookedCurrent != null && bookedPrevious != null) { totals.booked_variance += bookedCurrent - bookedPrevious; present.booked_variance = true; }
+    });
+    metricKeys.forEach(key => {
+      const cell = document.querySelector(`[data-parties-summary="${key}"]`);
+      if (cell) cell.textContent = present[key] ? fixed(totals[key]) : '';
+    });
+    ['quarter', 'year'].forEach(scope => metricKeys.forEach(key => {
+      const initialScope = initialSummary[`${scope}-${key}`];
+      const initialMonth = initialSummary[key];
+      const liveMonth = present[key] ? totals[key] : null;
+      const value = initialScope != null ? initialScope - (initialMonth || 0) + (liveMonth || 0) : liveMonth;
+      const cell = document.querySelector(`[data-parties-summary="${scope}-${key}"]`);
+      if (cell) cell.textContent = value == null ? '' : fixed(value);
+    }));
+  };
+  rows.forEach(row => row.querySelectorAll('input').forEach(input => input.addEventListener('input', () => { recalculate(row); recalculateSummary(); })));
+  rows.forEach(recalculate);
+  recalculateSummary();
+})();
+</script>
 {% endblock %}
