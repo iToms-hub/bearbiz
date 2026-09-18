@@ -51,8 +51,7 @@ credentials using a read-only package token; never put the token in Compose or
 `stack.env` committed to Git.
 
 The checked-in workflow publishes with `GITHUB_TOKEN` and no application
-secrets. Pushes to `main` publish `latest` and an immutable SHA tag. version
-version tags such as `v1.1.8` publish `1.1.8`, `1.0`, `1`, and a SHA tag. The compose
+secrets. Pushes to `main` publish `latest` and an immutable SHA tag. Version tags such as `v1.1.8` publish `1.1.8`, `1.0`, `1`, and a SHA tag. The compose
 file pins the verified release tag. Never use `down -v` during an update.
 
 The stack's `bearbiz_backups` volume is local to the deployment host and is not
