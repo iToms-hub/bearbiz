@@ -31,7 +31,7 @@ def test_trusted_cloudflare_origin_can_post_fiscal_settings(client) -> None:
     client = client.__class__(enforce_csrf_checks=True)
     with override_settings(CSRF_TRUSTED_ORIGINS=["https://bearbiz.itoms.org"]):
         response = client.get(reverse("settings:fiscal"))
-        token = response.cookies["csrftoken"].value
+        token = response.cookies["bearbiz_csrftoken"].value
         post = client.post(
             reverse("settings:fiscal"),
             {"fiscal_year_start_date": "2026-01-01", "csrfmiddlewaretoken": token},

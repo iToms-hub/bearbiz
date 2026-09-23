@@ -3,7 +3,7 @@
 Bearbiz is a BI platform for weekly report uploads, PDF extraction, dashboards,
 and printable/exportable sales reporting.
 
-Current version: 1.1.9
+Current version: 1.2.0
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ before opening the UI:
 
 ```bash
 curl --fail http://localhost:8002/health/
-# Expected shape: {"status":"ok","version":"1.1.9"}
+# Expected shape: {"status":"ok","version":"1.2.0"}
 ```
 
 Open `http://localhost:8002/admin/` for the admin site. The Compose web
@@ -87,7 +87,7 @@ container restart to hide migration failures.
 ## Portainer Community Edition deployment
 
 The CE stack is a portable image-based deployment. It pulls the pinned
-`ghcr.io/itoms-hub/bearbiz:1.1.9` image by default; it does not build from a
+`ghcr.io/itoms-hub/bearbiz:1.2.0` image by default; it does not build from a
 checkout, use host bind paths, mount the Docker socket, or reference an
 external `env_file`. The web container runs migrations before Gunicorn starts,
 waits for PostgreSQL health, persists data in the explicitly named Docker
@@ -120,7 +120,7 @@ CSRF_TRUSTED_ORIGINS  https://bearbiz.itoms.org
 Optional overrides: `DEBUG=0`, `POSTGRES_DB=bearbiz`, `POSTGRES_USER=bearbiz`,
 `BACKUP_OWNER_UID=1000`, `BACKUP_OWNER_GID=1000`, and `GUNICORN_WORKERS=3`.
 
-The stack pins image release `1.1.9`, sets `POSTGRES_HOST=db`, and the internal
+The stack pins image release `1.2.0`, sets `POSTGRES_HOST=db`, and the internal
 backup paths itself. Add any reverse-proxy
 hostname to `ALLOWED_HOSTS`, and add its full `https://` origin to
 `CSRF_TRUSTED_ORIGINS` explicitly, for example
@@ -133,7 +133,7 @@ unauthenticated Portainer/Docker pull. If the package remains private, configure
 Portainer's registry credentials for `ghcr.io` with a read-only package token;
 do not put that token in the compose file or Git. The workflow publishes on
 `main` as `latest` plus an immutable SHA tag, and on version tags such as
-`v1.1.9` as `1.1.9` (plus safe semver tags and SHA). Deploy the verified version tag from the compose file for repeatable releases;
+`v1.2.0` as `1.2.0` (plus safe semver tags and SHA). Deploy the verified version tag from the compose file for repeatable releases;
 change that tag only after verifying a backup and the new image.
 
 The named volumes survive stack updates. The backup volume is local to the

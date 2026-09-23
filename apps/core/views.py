@@ -13,6 +13,7 @@ from pathlib import Path
 from django.conf import settings as django_settings
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
 from .ai import fetch_available_model_names as fetch_ai_model_suggestions, probe_ai_endpoint
@@ -87,6 +88,7 @@ def _default_review_layout() -> list[dict[str, str]]:
     return [{"type": slug, "title": label} for slug, label in REVIEW_MODULES]
 
 
+@ensure_csrf_cookie
 def template_page(request: HttpRequest) -> HttpResponse:
     templates = list(ReviewTemplate.objects.all())
     selected_id = request.GET.get("template") or request.POST.get("template_id")
@@ -110,7 +112,7 @@ def template_page(request: HttpRequest) -> HttpResponse:
                 layout = selected.layout
             allowed = {slug for slug, _ in REVIEW_MODULES} | set(LEGACY_REVIEW_MODULE_LABELS)
             labels = dict(REVIEW_MODULES) | LEGACY_REVIEW_MODULE_LABELS
-            selected.layout = [
+            cleaned_layout = [
                 {
                     "type": item["type"],
                     "title": str(item.get("title") or labels[item["type"]])[:120],
@@ -120,6 +122,22 @@ def template_page(request: HttpRequest) -> HttpResponse:
                 for item in layout
                 if isinstance(item, dict) and item.get("type") in allowed
             ]
+            module_action = str(request.POST.get("module_action") or "")
+            try:
+                action_name, raw_index = module_action.split(":", 1)
+                index = int(raw_index)
+            except (ValueError, TypeError):
+                action_name, index = "", -1
+            if 0 <= index < len(cleaned_layout):
+                if action_name == "up" and index > 0:
+                    cleaned_layout[index - 1], cleaned_layout[index] = cleaned_layout[index], cleaned_layout[index - 1]
+                elif action_name == "down" and index < len(cleaned_layout) - 1:
+                    cleaned_layout[index + 1], cleaned_layout[index] = cleaned_layout[index], cleaned_layout[index + 1]
+                elif action_name == "toggle":
+                    cleaned_layout[index]["enabled"] = not cleaned_layout[index]["enabled"]
+                elif action_name == "remove":
+                    cleaned_layout.pop(index)
+            selected.layout = cleaned_layout
             selected.save()
         elif action == "delete" and selected:
             selected.delete()

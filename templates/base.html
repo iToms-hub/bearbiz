@@ -361,16 +361,22 @@
       .status-badge.healthy { background: #18794e; color: white; }
       .status-badge.warning { background: #a15c00; color: white; }
       .review-template-editor { min-width: 0; }
-      .template-toolbar, .template-mock-heading, .template-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-      .template-editor-grid { display: grid; grid-template-columns: minmax(13rem, 0.35fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-      .template-module-library, .template-mock-page { border: 1px solid var(--border); border-radius: 0.8rem; padding: 0.8rem; }
-      .template-module-library { display: grid; gap: 0.5rem; position: sticky; top: 1rem; }
+      .template-toolbar, .template-mock-heading, .template-actions, .template-action-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+      .template-editor-grid { display: grid; grid-template-columns: minmax(13rem, 0.35fr) minmax(0, 1fr); gap: 0.75rem; align-items: start; }
+      .template-module-library, .template-mock-page { border: 1px solid var(--border); border-radius: 0.6rem; padding: 0.6rem; }
+      .template-module-library { display: grid; gap: 0.35rem; position: sticky; top: 1rem; }
       .template-module { text-align: left; cursor: grab; }
-      .template-dropzone { display: grid; gap: 0.6rem; min-height: 22rem; padding-top: 0.8rem; }
-      .template-layout-module { display: grid; grid-template-columns: auto 1fr auto; gap: 0.7rem; align-items: start; padding: 0.8rem; border: 1px solid var(--border); border-radius: 0.7rem; background: color-mix(in srgb, var(--card) 92%, var(--accent)); cursor: grab; }
+      .template-dropzone { display: grid; gap: 0.55rem; min-height: 16rem; padding-top: 0.45rem; }
+      .template-layout-module { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.45rem; align-items: start; padding: 0.55rem; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 0.5rem; background: color-mix(in srgb, var(--card) 98%, var(--accent)); box-shadow: 0 1px 2px color-mix(in srgb, CanvasText 14%, transparent); cursor: grab; }
       .template-layout-module textarea { display: block; width: 100%; min-height: 4rem; margin-top: 0.5rem; }
-      .drag-handle { color: var(--muted-foreground); letter-spacing: -0.25rem; }
-      .template-remove { border: 0; background: transparent; color: #b42318; font-size: 1.2rem; cursor: pointer; }
+      .template-layout-module [data-module-title-editor] { display: block; line-height: 1.2; }
+      .drag-handle { color: var(--muted-foreground); font-size: 0.85rem; letter-spacing: -0.25rem; padding-top: 0.15rem; }
+      .template-card-actions { display: flex; align-items: center; gap: 0.2rem; }
+      .template-move-button { min-width: 1.55rem; padding: 0.2rem 0.35rem; line-height: 1; }
+      .template-move-button:disabled { opacity: 0.35; cursor: not-allowed; }
+      .template-remove, .template-delete-button { border: 1px solid #b42318; background: #b42318; color: #fff; font-weight: 700; cursor: pointer; }
+      .template-remove { min-width: 1.55rem; padding: 0.2rem 0.35rem; line-height: 1; }
+      .template-remove:hover, .template-delete-button:hover { background: #8f1d14; border-color: #8f1d14; }
       .template-saved-list { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
       .template-details { display: grid; gap: 0.35rem; max-width: 42rem; margin-bottom: 0.75rem; }
       .template-details label { font-size: 0.82rem; font-weight: 650; }

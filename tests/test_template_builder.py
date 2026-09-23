@@ -44,6 +44,7 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     client = Client()
     page = client.get(reverse("settings:templates"))
     assert page.status_code == 200
+    assert getattr(page, "cookies", {}).get("bearbiz_csrftoken") is not None
     created = client.post(reverse("settings:templates"), {"action": "create", "name": "Weekly Review"})
     assert created.status_code == 200
     html = created.content.decode()
@@ -52,9 +53,25 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     assert "Weekly Sales Trend" in html
     assert "template-module-library" in html
     assert "template-mock-page" in html
+    assert "template-move-button" in html
+    assert 'data-move-module="up"' in html
+    assert 'data-move-module="down"' in html
+    assert 'name="action" value="delete"' in html
+    assert "template-delete-button" in html
+    assert "template-card-actions" in html
+    rendered_dropzone = html.split("data-dropzone>", 1)[1].split("</section>", 1)[0]
+    assert rendered_dropzone.count('<article class="template-layout-module"') == 8
 
     template = ReviewTemplate.objects.get(name="Weekly Review")
     layout = [{"type": "notes", "title": "Notes", "text": "Manager notes"}, {"type": "rankings", "title": "Rankings · Last 5 Weeks"}]
+    csrf_client = Client(enforce_csrf_checks=True)
+    csrf_page = csrf_client.get(reverse("settings:templates"), {"template": template.pk})
+    csrf_token = getattr(csrf_page, "cookies")["bearbiz_csrftoken"].value
+    csrf_saved = csrf_client.post(reverse("settings:templates"), {
+        "action": "save", "template_id": str(template.pk), "name": "Weekly Review", "subtitle": "",
+        "layout": json.dumps(layout), "csrfmiddlewaretoken": csrf_token,
+    })
+    assert getattr(csrf_saved, "status_code") == 200
     saved = client.post(reverse("settings:templates"), {
         "action": "save", "template_id": str(template.pk), "name": "Weekly Review Updated", "subtitle": "Leadership review · Week 7", "layout": json.dumps(layout),
     })
@@ -112,3 +129,35 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     deleted = client.post(reverse("settings:templates"), {"action": "delete", "template_id": str(template.pk)})
     assert deleted.status_code == 200
     assert not ReviewTemplate.objects.filter(pk=template.pk).exists()
+
+
+@pytest.mark.django_db()
+def test_template_module_buttons_have_server_side_fallback() -> None:
+    template = ReviewTemplate.objects.create(
+        name="Button fallback",
+        layout=[
+            {"type": "product-top-10", "title": "Product"},
+            {"type": "payroll", "title": "Payroll"},
+            {"type": "notes", "title": "Notes"},
+        ],
+    )
+    client = Client()
+    url = reverse("settings:templates")
+
+    def post(layout: list[dict[str, object]], module_action: str):
+        return client.post(url, {
+            "action": "save", "template_id": str(template.pk), "name": template.name,
+            "subtitle": "", "layout": json.dumps(layout), "module_action": module_action,
+        })
+
+    post(template.layout, "down:0")
+    template.refresh_from_db()
+    assert [item["type"] for item in template.layout] == ["payroll", "product-top-10", "notes"]
+
+    post(template.layout, "toggle:1")
+    template.refresh_from_db()
+    assert template.layout[1]["enabled"] is False
+
+    post(template.layout, "remove:1")
+    template.refresh_from_db()
+    assert [item["type"] for item in template.layout] == ["payroll", "notes"]

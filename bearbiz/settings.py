@@ -17,6 +17,7 @@ def _parse_csv_env(name: str) -> list[str]:
 
 
 CSRF_TRUSTED_ORIGINS = _parse_csv_env("CSRF_TRUSTED_ORIGINS")
+CSRF_COOKIE_NAME = "bearbiz_csrftoken"
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 INSTALLED_APPS = [
