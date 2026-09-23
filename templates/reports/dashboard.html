@@ -24,9 +24,7 @@
       <h2>Payroll</h2>
       {% if payroll_summary %}
         <div class="payroll-dashboard-details">
-          <div><span>Last Week</span><strong>{{ payroll_summary.total_hours }}</strong></div>
-          <div><span>+/- Target</span><strong>{{ payroll_summary.variance }}</strong></div>
-          <div><span>Percent to Target</span><strong>{{ payroll_summary.percent }}</strong></div>
+          <div><strong>{{ payroll_summary.percent }}</strong></div>
         </div>
       {% else %}
         <div class="empty">No Payroll data available.</div>

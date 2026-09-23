@@ -8,6 +8,7 @@ from django.urls import reverse
 
 from apps.core.models import FiscalYearSettings, ReviewTemplate
 from apps.reports.models import PayrollWeek
+from apps.reports import payroll_views
 from apps.reports.payroll_views import FISCAL_MONTH_WEEK_COUNTS, _parse_decimal, payroll_dashboard_summary, payroll_fiscal_year_start, payroll_month_labels, payroll_month_layout, payroll_week_ending
 
 
@@ -179,10 +180,11 @@ def test_payroll_is_available_on_dashboard_and_review_with_authoritative_week(cl
     assert dashboard.status_code == 200
     dashboard_html = dashboard.content.decode()
     assert "dashboard-card-payroll" in dashboard_html
-    assert "75.00" in dashboard_html
-    assert "-5.00" in dashboard_html
     assert "93.8%" in dashboard_html
-    assert ".dashboard-card-payroll h2 { color: #000; }" in dashboard_html
+    assert "Last Week Percent to Target" not in dashboard_html
+    assert "75.00" not in dashboard_html
+    assert "-5.00" not in dashboard_html
+    assert ".dashboard-card-payroll h2 { color: var(--foreground); }" in dashboard_html
     assert ".payroll-dashboard-details strong { display: block; color: #2563eb;" in dashboard_html
 
     template = ReviewTemplate.objects.create(name="Payroll review", layout=[{"type": "payroll", "title": "Last Week Payroll"}])
@@ -192,3 +194,28 @@ def test_payroll_is_available_on_dashboard_and_review_with_authoritative_week(cl
     assert 'data-review-module="payroll"' in review_html
     assert "Actual Hours" in review_html
     assert "Percent to Target" in review_html
+
+
+@pytest.mark.django_db
+def test_payroll_dashboard_ignores_future_saved_weeks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(payroll_views.timezone, "localdate", lambda: date(2026, 9, 22))
+    PayrollWeek.objects.create(
+        fiscal_year=2027,
+        fiscal_month=2,
+        fiscal_week=5,
+        sun=Decimal("40"),
+        labor_calculator_target_hours=Decimal("40"),
+    )
+    PayrollWeek.objects.create(
+        fiscal_year=2027,
+        fiscal_month=10,
+        fiscal_week=40,
+        sun=Decimal("99"),
+        labor_calculator_target_hours=Decimal("99"),
+    )
+
+    summary = payroll_dashboard_summary(2027)
+
+    assert summary is not None
+    assert summary["week"] == "5"
+    assert summary["week_ending"] == "03/07/26"

@@ -40,6 +40,9 @@
     table.report-grid.striped tbody tr.review-parties-latest { background: #eef8f0; font-weight: 600; }
     table.report-grid.striped tbody tr.review-parties-year { background: #eaf1fb; font-weight: bold; border-top: 1.5pt solid #9aafc7; }
     tbody tr.report-week-row-latest { background: #e2f3e6; font-weight: 650; }
+    tbody tr.report-performer-top { background: #d1fae5; font-weight: bold; }
+    tbody tr.report-performer-bottom { background: #fee2e2; font-weight: bold; }
+    tbody tr.report-ranking-row-latest { background: #e2f3e6; font-weight: bold; }
     td.review-above-store { background: #d1fae5; font-weight: bold; }
     td.review-best-performance { background: #d1fae5; font-weight: bold; }
     .pdf-footer { position: fixed; bottom: -0.48in; left: 0; right: 0; height: 0.36in; color: #555; font-size: 7pt; }
@@ -50,6 +53,13 @@
     .pdf-footer-right { text-align: right; }
     .pdf-footer img { width: 0.72in; height: 0.28in; object-fit: contain; vertical-align: middle; margin-right: 0.04in; }
     .pdf-page-counter::before { content: "Page " counter(page) " of " counter(pages); }
+    .module-goal { color: #5d6670; font-size: 8.5pt; font-weight: normal; }
+    .sign-off-page { break-before: page; min-height: 9.2in; padding-top: 7.35in; }
+    .sign-off { border: 1px solid #aeb8c0; padding: 0.18in; }
+    .sign-off h2 { margin: 0 0 0.16in; border-bottom: 2px solid #3f6f8f; padding-bottom: 0.04in; font-size: 13pt; }
+    .sign-off-lines { text-align: center; }
+    .sign-off-line { display: inline-block; width: 1.25in; height: 0.28in; margin-right: 0.22in; border-bottom: 1px solid #20252b; vertical-align: bottom; }
+    .sign-off-line:last-child { margin-right: 0; }
   </style>
 </head>
 <body>
@@ -58,7 +68,7 @@
 
   {% for module in review_layout %}
     <section class="module">
-      <h2>{{ module.title }}</h2>
+      <h2>{{ module.title }}{% if module.type == 'bonus-club' %}<br><span class="module-goal">Goal: Club % 80%</span>{% elif module.type == 'gift-card-bonus' %}<br><span class="module-goal">Goal: GC% 18%</span>{% endif %}</h2>
       {% if module.type == 'notes' %}
         <div class="note">{{ module.text|safe|default:"No notes added." }}</div>
       {% elif module.type == 'bonus-gift-combined' %}
@@ -70,7 +80,7 @@
       {% elif module.type == 'payroll' %}
         {% if module.payroll %}<table><thead><tr><th>Actual Hours</th><th>Target Hours</th><th>Hours +/-</th><th>Percent to Target</th></tr></thead><tbody><tr><td>{{ module.payroll.total_hours }}</td><td>{{ module.payroll.target_hours }}</td><td>{{ module.payroll.variance }}</td><td>{{ module.payroll.percent }}</td></tr></tbody></table>{% else %}<p class="message">No Payroll data available.</p>{% endif %}
       {% elif module.type == 'product-top-10' %}
-        {% if module.units_rows %}<p>Fiscal Year {{ module.latest_year }}, Week {{ module.latest_week }}</p><table class="product-review-tables"><tr><td><h3>Top 10 by Units Sold</h3><table class="report-grid striped"><thead><tr><th>Rank</th><th>Item</th><th>Description</th><th>Department</th><th>Units</th></tr></thead><tbody>{% for row in module.units_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>{{ row.value }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ module.reusable_backpacks.label }}</td><td>{{ module.reusable_backpacks.department }}</td><td>{{ module.reusable_backpacks.units_sold }}</td></tr></tbody></table></td><td><h3>Top 10 by Net Sales</h3><table class="report-grid striped"><thead><tr><th>Rank</th><th>Item</th><th>Description</th><th>Department</th><th>Net Sales</th></tr></thead><tbody>{% for row in module.sales_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>{{ row.value }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ module.reusable_backpacks.label }}</td><td>{{ module.reusable_backpacks.department }}</td><td>${{ module.reusable_backpacks.net_sales|floatformat:2 }}</td></tr></tbody></table></td></tr></table>{% else %}<p class="message">{{ module.message }}</p>{% endif %}
+        {% if module.units_rows %}<table class="product-review-tables"><tr><td><h3>Top 10 by Units Sold</h3><table class="report-grid striped"><thead><tr><th>Rank</th><th>Item</th><th>Description</th><th>Department</th><th>Units</th></tr></thead><tbody>{% for row in module.units_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>{{ row.value }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ module.reusable_backpacks.label }}</td><td>{{ module.reusable_backpacks.department }}</td><td>{{ module.reusable_backpacks.units_sold }}</td></tr></tbody></table></td><td><h3>Top 10 by Net Sales</h3><table class="report-grid striped"><thead><tr><th>Rank</th><th>Item</th><th>Description</th><th>Department</th><th>Net Sales</th></tr></thead><tbody>{% for row in module.sales_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>{{ row.value }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ module.reusable_backpacks.label }}</td><td>{{ module.reusable_backpacks.department }}</td><td>${{ module.reusable_backpacks.net_sales|floatformat:2 }}</td></tr></tbody></table></td></tr></table>{% else %}<p class="message">{{ module.message }}</p>{% endif %}
       {% else %}
         {% include "reports/review_table.html" with headers=module.headers rows=module.rows %}
       {% endif %}
@@ -78,6 +88,15 @@
   {% empty %}
     <p class="message">No enabled report modules are configured.</p>
   {% endfor %}
+
+  <section class="sign-off-page">
+    <div class="sign-off">
+      <h2>Manager Sign Off</h2>
+      <div class="sign-off-lines">
+        <span class="sign-off-line"></span><span class="sign-off-line"></span><span class="sign-off-line"></span><span class="sign-off-line"></span>
+      </div>
+    </div>
+  </section>
 
   <footer class="pdf-footer">
     <table class="pdf-footer-table"><tr>

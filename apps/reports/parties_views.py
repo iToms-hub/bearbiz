@@ -18,7 +18,7 @@ from .forms import ReportUploadForm
 from .models import PartiesSummary, PartiesWeek, ReportUpload
 from .modules.parties import PartiesReport
 from .payroll_views import _fiscal_year as payroll_fiscal_year
-from .payroll_views import payroll_month_labels, payroll_month_layout, payroll_week_ending
+from .payroll_views import current_payroll_month, payroll_month_labels, payroll_month_layout, payroll_week_ending
 
 
 HEADERS = ["Week", "Week Date", "TTL Parties Held TY", "TTL Parties Held LY", "Held +/-", "TTL Parties Booked TY", "TTL Parties Booked LY", "Booked +/-"]
@@ -216,12 +216,14 @@ def _total_row(label: str, rows: list[dict[str, Any]], row_class: str) -> dict[s
 
 
 def index(request: HttpRequest) -> HttpResponse:
-    month = 1
+    default_month = current_payroll_month()
+    month = default_month
+    raw_month = request.POST.get("month") or request.GET.get("month")
     try:
-        month = int(request.POST.get("month") or request.GET.get("month") or "1")
+        month = int(str(raw_month)) if raw_month is not None else default_month
     except ValueError:
-        month = 1
-    month = month if 1 <= month <= 12 else 1
+        month = default_month
+    month = month if 1 <= month <= 12 else default_month
     fiscal_year = payroll_fiscal_year()
     errors: list[str] = []
 

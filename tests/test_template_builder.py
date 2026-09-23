@@ -94,11 +94,20 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     assert "Last Weeks Performance Review" in pdf_text
     assert "Weekly Review Updated" not in pdf_text
     assert "For internal use only" in pdf_text
-    assert "Page 1 of" in pdf_text
+    assert "Manager Sign Off" in pdf_text
+    assert "Reviewed by manager initials:" not in pdf_text
+    assert "Review date:" not in pdf_text
+    assert "Page 2 of 2" in pdf_text
     pdf_template = (ROOT / "templates/reports/dashboard_review_pdf.html").read_text()
     assert "td.review-above-store" in pdf_template
     assert "tbody tr.report-week-row-latest" in pdf_template
+    assert "tbody tr.report-ranking-row-latest" in pdf_template
     assert "td.review-best-performance" in pdf_template
+    assert "Goal: Club % 80%" in pdf_template
+    assert "Goal: GC% 18%" in pdf_template
+    assert "Fiscal Year {{ module.latest_year }}, Week {{ module.latest_week }}" not in pdf_template
+    assert "class=\"sign-off-page\"" in pdf_template
+    assert pdf_template.count('class="sign-off-line"') == 4
 
     deleted = client.post(reverse("settings:templates"), {"action": "delete", "template_id": str(template.pk)})
     assert deleted.status_code == 200

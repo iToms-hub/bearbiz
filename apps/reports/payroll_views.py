@@ -73,12 +73,21 @@ def payroll_week_ending(fiscal_year: int, week: int) -> date:
     return payroll_fiscal_year_start(fiscal_year) + timedelta(days=week * 7 - 1)
 
 
+def current_payroll_month(fiscal_year: int | None = None) -> int:
+    """Return the configured 4-5-4 fiscal month containing today."""
+    fiscal_year = fiscal_year or _fiscal_year()
+    start = payroll_fiscal_year_start(fiscal_year)
+    current_week = max(1, min(52, ((timezone.localdate() - start).days // 7) + 1))
+    return next(month for month, weeks in payroll_month_layout().items() if current_week in weeks)
+
+
 def _selected_month(request: HttpRequest) -> int:
+    raw_month = request.POST.get("month") or request.GET.get("month")
     try:
-        month = int(request.POST.get("month") or request.GET.get("month") or "1")
+        month = int(str(raw_month)) if raw_month is not None else current_payroll_month()
     except ValueError:
-        month = 1
-    return month if 1 <= month <= 12 else 1
+        month = current_payroll_month()
+    return month if 1 <= month <= 12 else current_payroll_month()
 
 
 def _fiscal_year() -> int:
@@ -150,9 +159,17 @@ def _summary_context(rows: list[PayrollWeek]) -> dict[str, str]:
 
 
 def payroll_dashboard_summary(fiscal_year: int | None = None) -> dict[str, str] | None:
-    """Return the latest saved Payroll week for dashboard surfaces."""
+    """Return the latest saved completed Payroll week for dashboard surfaces."""
     fiscal_year = fiscal_year or _fiscal_year()
-    row = PayrollWeek.objects.filter(fiscal_year=fiscal_year).order_by("-fiscal_week").first()
+    today = timezone.localdate()
+    last_completed_week = max(
+        (week for week in range(1, 53) if payroll_week_ending(fiscal_year, week) <= today),
+        default=0,
+    )
+    row = getattr(PayrollWeek, "objects").filter(
+        fiscal_year=fiscal_year,
+        fiscal_week__lte=last_completed_week,
+    ).order_by("-fiscal_week").first()
     if row is None or row.labor_calculator_target_hours is None:
         return None
     total_hours = row.total_hours_actual_scheduled

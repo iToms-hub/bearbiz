@@ -451,6 +451,7 @@
         font-size: 1.17rem;
         text-align: center;
       }
+      .dashboard-card-payroll h2 { font-size: 1.17rem; }
       .dashboard-card-bonus .dashboard-metric-value { color: #b45309; }
       .dashboard-card-gift .dashboard-metric-value { color: #7c3aed; }
       .payroll-heading { display: block; }
@@ -464,7 +465,7 @@
       .product-lookup-controls input { min-width: 0; flex: 1; }
       .product-lookup-results { margin-top: 1rem; }
       .product-lookup-table { max-width: 42rem; }
-      .product-lookup-table th, .product-lookup-table td { padding: 0.35rem 0.45rem; }
+      .product-lookup-table th, .product-lookup-table td { padding: 0.3rem 0.35rem; line-height: 1.2; }
       .product-lookup-table th:nth-child(1), .product-lookup-table td:nth-child(1) { width: 50%; }
       .product-lookup-table th:nth-child(2), .product-lookup-table td:nth-child(2) { width: 25%; text-align: right; }
       .product-lookup-table th:nth-child(3), .product-lookup-table td:nth-child(3) { width: 25%; text-align: right; }
@@ -477,8 +478,8 @@
       .review-product-top10-grid th:nth-child(3), .review-product-top10-grid td:nth-child(3) { width: 35%; }
       .review-product-top10-grid th:nth-child(4), .review-product-top10-grid td:nth-child(4) { width: 25%; }
       .review-product-top10-grid th:nth-child(5), .review-product-top10-grid td:nth-child(5) { width: 17%; text-align: right; }
-      .product-ranking-table { width: 100%; table-layout: fixed; font-size: 0.78rem; }
-      .product-ranking-table th, .product-ranking-table td { padding: 0.35rem 0.3rem; overflow-wrap: anywhere; }
+      .product-ranking-table { width: 100%; table-layout: fixed; font-size: 0.74rem; }
+      .product-ranking-table th, .product-ranking-table td { padding: 0.3rem 0.35rem; line-height: 1.2; overflow-wrap: anywhere; }
       .product-ranking-table th:nth-child(1), .product-ranking-table td:nth-child(1) { width: 9%; text-align: center; }
       .product-ranking-table th:nth-child(2), .product-ranking-table td:nth-child(2) { width: 18%; }
       .product-ranking-table th:nth-child(3), .product-ranking-table td:nth-child(3) { width: 35%; }
@@ -519,12 +520,13 @@
       .payroll-entry-grid .payroll-total-row td { background: color-mix(in srgb, var(--accent) 11%, Canvas); font-weight: 700; border-top: 2px solid color-mix(in srgb, var(--accent) 55%, var(--border)); }
       .payroll-entry-grid .payroll-summary-value { font-variant-numeric: tabular-nums; }
       .payroll-entry-grid .payroll-summary-label { white-space: normal; overflow-wrap: anywhere; text-align: right; line-height: 1.15; }
-      .dashboard-card-payroll h2 { color: #000; }
+      .dashboard-card-payroll h2 { color: var(--foreground); }
       .payroll-dashboard-details, .review-payroll-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; text-align: center; }
+      .payroll-dashboard-details { grid-template-columns: minmax(0, 1fr); }
       .payroll-dashboard-details div, .review-payroll-metrics div { min-width: 0; padding: 0 0.22rem; }
       .payroll-dashboard-details div + div, .review-payroll-metrics div + div { border-left: 1px solid color-mix(in srgb, var(--border) 85%, var(--foreground)); }
       .payroll-dashboard-details span { display: block; font-size: 0.78rem; line-height: 1.05; color: var(--text-muted); }
-      .payroll-dashboard-details strong { display: block; color: #2563eb; font-size: 1.65rem; line-height: 1.05; }
+      .payroll-dashboard-details strong { display: block; color: #2563eb; font-size: clamp(2.25rem, 6vw, 4rem); font-weight: 800; line-height: 1; letter-spacing: -0.04em; }
       .review-payroll-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: none; width: 100%; }
       .review-payroll-metrics span { display: block; font-size: 0.9rem; line-height: 1.05; color: var(--text-muted); }
       .review-payroll-metrics strong { display: block; color: #2563eb; font-size: 2rem; line-height: 1.05; }
@@ -637,11 +639,12 @@
       .striped tbody tr:nth-child(even) { background: color-mix(in srgb, CanvasText 4%, Canvas); }
       .report-grid {
         table-layout: fixed;
-        font-size: 0.78rem;
+        font-size: 0.74rem;
       }
       .report-grid th,
       .report-grid td {
-        padding: 0.35rem 0.4rem;
+        padding: 0.3rem 0.35rem;
+        line-height: 1.2;
         word-break: break-word;
         overflow-wrap: anywhere;
       }
@@ -695,6 +698,14 @@
       .report-grid tbody tr.report-week-row-latest {
         background: color-mix(in srgb, #0a7a28 14%, Canvas);
         font-weight: 650;
+      }
+      .report-grid tbody tr.report-performer-top {
+        background: color-mix(in srgb, #16a34a 18%, Canvas);
+        font-weight: 700;
+      }
+      .report-grid tbody tr.report-performer-bottom {
+        background: color-mix(in srgb, #dc2626 14%, Canvas);
+        font-weight: 700;
       }
       .parties-grid tbody tr.report-month-total {
         background: color-mix(in srgb, #0b7285 16%, Canvas);
@@ -988,6 +999,36 @@
         .chat-input-row { gap: 0.4rem; }
         .chat-composer { padding: 0.55rem; }
         .performance-filter-form { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 1100px) {
+        .app-shell { grid-template-columns: 10.5rem minmax(0, 1fr); }
+        main { padding: 0.85rem; }
+        .sidebar { padding: 0.6rem 0.45rem; gap: 0.7rem; }
+        .sidebar a, .sidebar .sidebar-link { gap: 0.5rem; padding: 0.45rem 0.5rem; font-size: 0.9rem; }
+        .sidebar-subnav { margin-left: 0.8rem; padding-left: 0.45rem; }
+        .sidebar-logo, .sidebar-logo-slot { height: 5rem; }
+        .page-header { gap: 0.6rem; margin-bottom: 0.7rem; }
+        .page-header h1 { font-size: clamp(1.5rem, 3vw, 2.1rem); }
+        .panel { padding: 0.25rem 0.7rem 0.7rem; margin-bottom: 0.7rem; }
+        .panel h2 { font-size: 1.25rem; margin-bottom: 0.55rem; }
+        .section-tabs { gap: 0.35rem; margin: 0.65rem 0 0.8rem; }
+        .report-toolbar { gap: 0.5rem 0.7rem; padding-top: 0.4rem; }
+        .report-toolbar .tab, .report-toolbar .page-action { padding: 0.32rem 0.55rem; font-size: 0.82rem; }
+        .report-grid { font-size: 0.64rem; }
+        .product-ranking-table { font-size: 0.68rem; }
+        .report-grid th, .report-grid td, .product-ranking-table th, .product-ranking-table td { padding: 0.2rem 0.22rem; line-height: 1.15; }
+        .product-ranking-grid { gap: 0.65rem; }
+        .dashboard-split-grid { gap: 0.65rem; }
+        .dashboard-card { padding-top: 0.55rem; padding-bottom: 0.55rem; }
+        .dashboard-card h2 { font-size: 1rem; }
+        .dashboard-card-payroll h2 { font-size: 1rem; }
+        .dashboard-metric-value { font-size: clamp(1.8rem, 5vw, 3rem); }
+        .payroll-dashboard-details strong { font-size: clamp(1.8rem, 5vw, 3rem); }
+        .site-footer { margin-top: 0.7rem; padding-top: 0.55rem; }
+        .upload-reminder { gap: 0.08rem; margin-bottom: 0.2rem; padding: 0.3rem 0.35rem; font-size: 0.58rem; line-height: 1.05; }
+        .upload-reminder-title { margin-bottom: 0.05rem; font-size: 0.54rem; }
+        .upload-reminder-row { gap: 0.25rem; }
+        .upload-reminder-light { width: 0.34rem; height: 0.34rem; }
       }
     </style>
     <script>

@@ -51,20 +51,20 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     payroll_summary = payroll_dashboard_summary()
     summaries = _dashboard_weekly_sales_summaries(limit=6)
     dashboard_title = _dashboard_title(summaries)
-    dashboard_headers = _weekly_report_headers()
+    dashboard_headers = _dashboard_weekly_report_headers()
     dashboard_rows = _weekly_report_rows(summaries)
     dashboard_rows.extend(_dashboard_trend_rows(summaries))
     ranking_summaries = _dashboard_ranking_summaries(limit=4)
-    ranking_headers = _ranking_report_headers()
+    ranking_headers = _dashboard_ranking_report_headers()
     ranking_rows = _ranking_report_rows(ranking_summaries)
     segment_summaries = _dashboard_segment_summaries(limit=1)
-    segment_headers = _segments_report_headers()
+    segment_headers = _dashboard_segments_report_headers()
     segment_rows = _dashboard_segment_rows(segment_summaries)
     context = shell_context(
         section="dashboard",
         page_title=dashboard_title,
         eyebrow="Dashboard",
-        subtitle="Latest store performance and weekly sales reports.",
+        subtitle=_dashboard_subtitle(summaries),
         bonus_club_value=bonus_club_value,
         gift_cards_value=gift_cards_value,
         payroll_summary=payroll_summary,
@@ -816,7 +816,7 @@ def _ranking_metrics_for_display(summary: RankingSummary | None, raw_json: dict[
 
 def _ranking_report_rows(summaries: list[RankingSummary]) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
-    for summary in summaries:
+    for index, summary in enumerate(summaries):
         upload = cast(ReportUpload, summary.report_upload)
         summary = _refresh_ranking_summary_if_needed(upload, summary)
         raw_json = summary.raw_json if isinstance(summary.raw_json, dict) else {}
@@ -826,6 +826,7 @@ def _ranking_report_rows(summaries: list[RankingSummary]) -> list[dict[str, obje
                 "summary": summary,
                 "headers": headers,
                 "values": values,
+                "row_class": "report-ranking-row-latest" if index == len(summaries) - 1 else "",
             }
         )
     return rows
@@ -837,6 +838,21 @@ def _ranking_report_headers() -> list[str]:
 
 def _segments_report_headers() -> list[str]:
     return ["Week", "Date", *SegmentsReport._VISIBLE_HEADERS]
+
+
+def _dashboard_weekly_report_headers() -> list[str]:
+    replacements = {"Traffic Lev": "leverage", "% Δ LY Traf": "% traf"}
+    return [replacements.get(header, header) for header in _weekly_report_headers()]
+
+
+def _dashboard_ranking_report_headers() -> list[str]:
+    replacements = {"Sales v plan": "v plan"}
+    return [replacements.get(header, header) for header in _ranking_report_headers()]
+
+
+def _dashboard_segments_report_headers() -> list[str]:
+    replacements = {"Conversion": "Conv", "Success Segments": "Success Seg"}
+    return [replacements.get(header, header) for header in _segments_report_headers()]
 
 
 def _segments_report_rows(summaries: list[SegmentsSummary]) -> list[dict[str, object]]:
@@ -1184,6 +1200,40 @@ def _gift_cards_report_headers() -> list[str]:
     return ["Week", "Date", *GiftCardsReport._VISIBLE_HEADERS]
 
 
+def _performer_row_class(rank: int, count: int) -> str:
+    # Keep the groups distinct; with fewer than six performers, three top and
+    # three bottom rows would overlap and produce contradictory highlighting.
+    if count < 6:
+        return ""
+    classes: list[str] = []
+    if rank < 3:
+        classes.append("report-performer-top")
+    if rank >= count - 3:
+        classes.append("report-performer-bottom")
+    return " ".join(classes)
+
+
+def _rank_performer_rows(rows: list[object], metric_name: str) -> list[dict[str, object]]:
+    valid_rows: list[dict[str, object]] = [row for row in rows if isinstance(row, dict)]
+    return sorted(
+        valid_rows,
+        key=lambda row: (-_performer_rate(row, metric_name), str(row.get("name", "")).casefold()),
+    )
+
+
+def _performer_rate(row: dict[str, object], metric_name: str) -> float:
+    metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+    value = _coerce_number(cast(dict[str, object], metrics).get(metric_name))
+    return value if value is not None else float("-inf")
+
+
+def _aggregate_group_rate(group: dict[str, object], metric_names: tuple[str, ...]) -> float:
+    values = cast(dict[str, object], group["values"])
+    total = _coerce_number(values.get(metric_names[0])) or 0.0
+    related = _coerce_number(values.get(metric_names[1])) or 0.0
+    return related / total * 100 if total else float("-inf")
+
+
 def _gift_cards_report_rows(summaries: list[GiftCardsSummary]) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for summary in summaries:
@@ -1202,9 +1252,8 @@ def _gift_cards_report_rows(summaries: list[GiftCardsSummary]) -> list[dict[str,
 
         associate_rows = raw_json.get("associate_rows") if isinstance(raw_json, dict) else []
         if isinstance(associate_rows, list):
-            for row in associate_rows:
-                if not isinstance(row, dict):
-                    continue
+            ranked_rows = _rank_performer_rows(associate_rows, "bonus_percent")
+            for rank, row in enumerate(ranked_rows):
                 values = [week_label, date_label, *_gift_cards_row_values(row)]
                 rows.append(
                     {
@@ -1215,7 +1264,7 @@ def _gift_cards_report_rows(summaries: list[GiftCardsSummary]) -> list[dict[str,
                         "name": row.get("name"),
                         "associate_number": row.get("associate_number", ""),
                         "weekly_sales_ready": weekly_sales_ready,
-                        "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 == 0 else 'report-week-row-odd'}",
+                        "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 == 0 else 'report-week-row-odd'} {_performer_row_class(rank, len(ranked_rows))}".strip(),
                         "values": values,
                     }
                 )
@@ -1332,7 +1381,11 @@ def _aggregate_associate_report_rows(summaries: list[Any], selected_associate: s
                 store_totals[metric] = float(store_totals[metric]) + value
     rows: list[dict[str, object]] = []
     headers_len = 8 if report_type == "gift_cards" else 7
-    for group in grouped.values():
+    ordered_groups = sorted(
+        grouped.values(),
+        key=lambda group: (-_aggregate_group_rate(group, metric_names), str(group["name"]).casefold()),
+    )
+    for rank, group in enumerate(ordered_groups):
         values = cast(dict[str, object], group["values"])
         total = float(values.get(metric_names[0]) or 0)
         related = float(values.get(metric_names[1]) or 0)
@@ -1342,7 +1395,7 @@ def _aggregate_associate_report_rows(summaries: list[Any], selected_associate: s
             display.extend([_format_percent(rate), _format_currency(values.get("missed_opportunities"))])
         else:
             display.append(_format_percent(rate))
-        rows.append({"summary": group["summary"], "row_kind": "associate_total", "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 else 'report-week-row-odd'}", "values": display[:headers_len - 2]})
+        rows.append({"summary": group["summary"], "row_kind": "associate_total", "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 else 'report-week-row-odd'} {_performer_row_class(rank, len(ordered_groups))}".strip(), "values": display[:headers_len - 2]})
     if not selected_associate and any(value for value in store_totals.values()):
         total = store_totals[metric_names[0]]
         related = store_totals[metric_names[1]]
@@ -1492,9 +1545,8 @@ def _bonus_club_report_rows(summaries: list[BonusClubSummary]) -> list[dict[str,
 
         associate_rows = raw_json.get("associate_rows") if isinstance(raw_json, dict) else []
         if isinstance(associate_rows, list):
-            for row in associate_rows:
-                if not isinstance(row, dict):
-                    continue
+            ranked_rows = _rank_performer_rows(associate_rows, "capture_rate")
+            for rank, row in enumerate(ranked_rows):
                 values = [week_label, date_label, *_bonus_club_row_values(row)]
                 rows.append(
                     {
@@ -1504,7 +1556,7 @@ def _bonus_club_report_rows(summaries: list[BonusClubSummary]) -> list[dict[str,
                         "date": date_label,
                         "name": row.get("name"),
                         "associate_number": row.get("associate_number", ""),
-                        "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 == 0 else 'report-week-row-odd'}",
+                        "row_class": f"report-week-row {'report-week-row-even' if len(rows) % 2 == 0 else 'report-week-row-odd'} {_performer_row_class(rank, len(ranked_rows))}".strip(),
                         "values": values,
                     }
                 )
@@ -2123,6 +2175,19 @@ def _dashboard_title(summaries: list[WeeklySalesSummary]) -> str:
     if not summaries:
         return "214 Temecula"
     return f"214 Temecula: Week {summaries[-1].fiscal_week:02d}"
+
+
+def _dashboard_subtitle(summaries: list[WeeklySalesSummary]) -> str:
+    if not summaries:
+        return "Last week performance"
+    latest = summaries[-1]
+    period_end = cast(date | None, latest.fiscal_period_end)
+    period_start = cast(date | None, latest.fiscal_period_start)
+    if period_end and period_start is None:
+        period_start = period_end - timedelta(days=6)
+    if period_start and period_end:
+        return f"Last week performance for {period_start:%m/%d/%y} to {period_end:%m/%d/%y}"
+    return "Last week performance"
 
 
 def _dashboard_latest_summary(model: type[Any]) -> Any | None:

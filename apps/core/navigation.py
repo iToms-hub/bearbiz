@@ -114,10 +114,15 @@ def report_upload_reminders() -> list[dict[str, Any]]:
     from apps.reports.models import (
         BonusClubSummary,
         GiftCardsSummary,
+        PartiesWeek,
+        PayrollWeek,
+        ProductReport,
         RankingSummary,
         SegmentsSummary,
         WeeklySalesSummary,
     )
+    from apps.reports.payroll_views import _fiscal_year as payroll_fiscal_year
+    from apps.reports.payroll_views import payroll_week_ending
 
     today = timezone.localdate()
     expected_week_end = today - timedelta(days=(today.weekday() - 5) % 7)
@@ -127,10 +132,17 @@ def report_upload_reminders() -> list[dict[str, Any]]:
         ("Segments", SegmentsSummary, "fiscal_period_end"),
         ("Gift Cards", GiftCardsSummary, "fiscal_period_end"),
         ("Bonus Club", BonusClubSummary, "fiscal_period_end"),
+        ("Product", ProductReport, "period_end"),
     )
     reminders: list[dict[str, Any]] = []
     for label, model, date_field in weekly_reports:
         present = model.objects.filter(**{f"{date_field}__gte": expected_week_end}).exists()
+        reminders.append({"label": label, "status": "green" if present else "red"})
+
+    fiscal_year = payroll_fiscal_year()
+    for label, model in (("Payroll", PayrollWeek), ("Parties", PartiesWeek)):
+        latest = getattr(model, "objects").filter(fiscal_year=fiscal_year).order_by("-fiscal_week").first()
+        present = bool(latest and payroll_week_ending(fiscal_year, latest.fiscal_week) >= expected_week_end)
         reminders.append({"label": label, "status": "green" if present else "red"})
     return reminders
 
