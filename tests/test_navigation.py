@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ from django.test import Client
 from django.urls import reverse
 
 from apps.core import navigation
+from apps.reports.models import GanttReport, MissedOpportunityReport, SegmentReport
 
 
 class FakeResponse:
@@ -88,6 +90,32 @@ def test_dashboard_subnav_routes_and_toggle_markup() -> None:
     assert "Last Weeks Performance Review" in review_html
     assert 'class="sidebar-subnav"' in review_html
     assert 'aria-current="page">Review</span>' in review_html
+
+
+@pytest.mark.django_db()
+def test_report_upload_reminders_include_this_week_missed_ops_statuses(monkeypatch: pytest.MonkeyPatch) -> None:
+    from django.utils import timezone
+
+    monkeypatch.setattr(timezone, "localdate", lambda: date(2026, 9, 27))
+    MissedOpportunityReport.objects.create(
+        fiscal_year=2027, fiscal_week=39, week_end=date(2026, 9, 26), source_name="mo.pdf"
+    )
+    SegmentReport.objects.create(
+        fiscal_year=2027, fiscal_week=39, day_of_week="Saturday", day_date=date(2026, 9, 26),
+        week_end=date(2026, 9, 26), source_name="segments.pdf"
+    )
+    GanttReport.objects.create(
+        fiscal_year=2027, fiscal_week=39, day_of_week="Saturday", day_date=date(2026, 9, 26),
+        week_end=date(2026, 9, 26), source_name="gantt.pdf"
+    )
+
+    reminders = navigation.report_upload_reminders()
+    statuses = {item["label"]: item["status"] for item in reminders}
+
+    assert {"MO Reports", "Segments", "Gantts"} <= statuses.keys()
+    assert statuses["MO Reports"] == "green"
+    assert statuses["Segments"] == "green"
+    assert statuses["Gantts"] == "green"
 
 
 def test_dashboard_subnav_has_foldable_css_and_behavior() -> None:

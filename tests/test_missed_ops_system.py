@@ -112,6 +112,22 @@ def test_review_page_and_pdf_routes_render(client: Client):
     assert "Missed Ops Review" in html
     assert response.context["missed_ops_review_headers"] == ["Date", "Day", "Segment", "Floor Leader", "Leverage", "DPT", "Conversion", "STAR"]
     assert "text-align:center" in html
+    assert ">Goals</strong>" in html
+    assert "review-criteria-controls" in html
+    assert "flex-wrap:nowrap" in html
+    assert "width:2.625rem" in html
+    assert "min-width:2.625rem" in html
+    assert "max-width:2.625rem" in html
+    assert "height:1.65rem" in html
+    assert "padding:.15rem .2rem" in html
+    assert "justify-items:center" in html
+    assert "text-align:center" in html
+    assert "padding:.2rem .3rem" in html
+    assert "min-width:0" in html
+    assert "font-size:.68rem" in html
+    assert "font-size:.56rem" in html
+    assert "th:nth-child(5),.missed-ops-review-grid td:nth-child(5){width:8%}" in html
+    assert "width:min(18rem,100%)" in html
 
     pdf = client.get(reverse("missed-ops-review-pdf"))
     assert pdf.status_code == 200

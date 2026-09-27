@@ -116,11 +116,13 @@ def report_upload_reminders() -> list[dict[str, Any]]:
     from apps.reports.models import (
         BonusClubSummary,
         GiftCardsSummary,
+        GanttReport,
+        MissedOpportunityReport,
         PartiesWeek,
         PayrollWeek,
         ProductReport,
         RankingSummary,
-        SegmentsSummary,
+        SegmentReport,
         WeeklySalesSummary,
     )
     from apps.reports.payroll_views import _fiscal_year as payroll_fiscal_year
@@ -131,7 +133,6 @@ def report_upload_reminders() -> list[dict[str, Any]]:
     weekly_reports = (
         ("Weekly Sales", WeeklySalesSummary, "fiscal_period_end"),
         ("Ranking", RankingSummary, "fiscal_period_end"),
-        ("Segments", SegmentsSummary, "fiscal_period_end"),
         ("Gift Cards", GiftCardsSummary, "fiscal_period_end"),
         ("Bonus Club", BonusClubSummary, "fiscal_period_end"),
         ("Product", ProductReport, "period_end"),
@@ -139,6 +140,15 @@ def report_upload_reminders() -> list[dict[str, Any]]:
     reminders: list[dict[str, Any]] = []
     for label, model, date_field in weekly_reports:
         present = model.objects.filter(**{f"{date_field}__gte": expected_week_end}).exists()
+        reminders.append({"label": label, "status": "green" if present else "red"})
+
+    missed_ops_reports = (
+        ("MO Reports", MissedOpportunityReport),
+        ("Segments", SegmentReport),
+        ("Gantts", GanttReport),
+    )
+    for label, model in missed_ops_reports:
+        present = model.objects.filter(week_end__gte=expected_week_end).exists()
         reminders.append({"label": label, "status": "green" if present else "red"})
 
     fiscal_year = payroll_fiscal_year()

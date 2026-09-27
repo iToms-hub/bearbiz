@@ -132,6 +132,11 @@
         letter-spacing: 0.06em;
         text-transform: uppercase;
       }
+      .upload-reminder-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.18rem 0.55rem;
+      }
       .upload-reminder-row {
         display: flex;
         align-items: center;
@@ -1097,13 +1102,15 @@
           </div>
           <div class="sidebar-lower">
             <section class="upload-reminder" aria-label="Report upload status">
-              <div class="upload-reminder-title">Uploads</div>
-              {% for reminder in upload_reminders %}
-                <div class="upload-reminder-row">
-                  <span class="upload-reminder-light upload-reminder-light-{{ reminder.status }}" aria-label="{{ reminder.status }}" title="{{ reminder.status|capfirst }}"></span>
-                  <span class="label">{{ reminder.label }}</span>
-                </div>
-              {% endfor %}
+              <div class="upload-reminder-title">This Week</div>
+              <div class="upload-reminder-grid">
+                {% for reminder in upload_reminders %}
+                  <div class="upload-reminder-row">
+                    <span class="upload-reminder-light upload-reminder-light-{{ reminder.status }}" aria-label="{{ reminder.status }}" title="{{ reminder.status|capfirst }}"></span>
+                    <span class="label">{{ reminder.label }}</span>
+                  </div>
+                {% endfor %}
+              </div>
             </section>
             {% for item in left_nav %}
               {% if item.visible|default_if_none:True and item.css_class %}
