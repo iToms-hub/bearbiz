@@ -377,3 +377,103 @@ class PayrollWeek(models.Model):
         if self.labor_calculator_target_hours is None:
             return None
         return (self.total_hours_actual_scheduled - self.labor_calculator_target_hours).quantize(Decimal("0.01"))
+
+
+class GanttImport(models.Model):
+    """Metadata for one in-memory Gantt upload."""
+
+    source_name = models.CharField(max_length=255)
+    parse_status = models.CharField(max_length=16, choices=[("pending", "Pending"), ("parsed", "Parsed"), ("failed", "Failed")], default="pending")
+    parse_error = models.TextField(blank=True)
+    fiscal_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    fiscal_week = models.PositiveSmallIntegerField(null=True, blank=True)
+    day_of_week = models.CharField(max_length=12, blank=True)
+    day_date = models.DateField(null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    parsed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-uploaded_at", "-id"]
+
+
+class GanttReport(models.Model):
+    """Parsed floor-leader assignments for one required opportunity day."""
+
+    fiscal_year = models.PositiveSmallIntegerField()
+    fiscal_week = models.PositiveSmallIntegerField()
+    day_of_week = models.CharField(max_length=12)
+    day_date = models.DateField()
+    week_end = models.DateField()
+    source_name = models.CharField(max_length=255)
+    time_slots = models.JSONField(default=list, blank=True)
+    employees = models.JSONField(default=list, blank=True)
+    imported_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-fiscal_year", "-fiscal_week", "day_date"]
+        constraints = [models.UniqueConstraint(fields=["fiscal_year", "fiscal_week", "day_of_week"], name="unique_gantt_report_period_day")]
+        verbose_name = "Gantt report"
+        verbose_name_plural = "Gantt reports"
+
+
+class MissedOpportunityImport(models.Model):
+    source_name = models.CharField(max_length=255)
+    parse_status = models.CharField(max_length=16, choices=[("pending", "Pending"), ("parsed", "Parsed"), ("failed", "Failed")], default="pending")
+    parse_error = models.TextField(blank=True)
+    fiscal_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    fiscal_week = models.PositiveSmallIntegerField(null=True, blank=True)
+    week_end = models.DateField(null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    parsed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-uploaded_at", "-id"]
+
+
+class MissedOpportunityReport(models.Model):
+    fiscal_year = models.PositiveSmallIntegerField()
+    fiscal_week = models.PositiveSmallIntegerField()
+    week_end = models.DateField()
+    source_name = models.CharField(max_length=255)
+    days = models.JSONField(default=list, blank=True)
+    total = models.JSONField(default=dict, blank=True)
+    target = models.JSONField(default=dict, blank=True)
+    imported_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-fiscal_year", "-fiscal_week"]
+        constraints = [models.UniqueConstraint(fields=["fiscal_year", "fiscal_week"], name="unique_missed_opportunity_fiscal_period")]
+        verbose_name = "missed opportunity report"
+        verbose_name_plural = "missed opportunity reports"
+
+
+class SegmentReportImport(models.Model):
+    source_name = models.CharField(max_length=255)
+    parse_status = models.CharField(max_length=16, choices=[("pending", "Pending"), ("parsed", "Parsed"), ("failed", "Failed")], default="pending")
+    parse_error = models.TextField(blank=True)
+    fiscal_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    fiscal_week = models.PositiveSmallIntegerField(null=True, blank=True)
+    day_of_week = models.CharField(max_length=12, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    parsed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-uploaded_at", "-id"]
+
+
+class SegmentReport(models.Model):
+    fiscal_year = models.PositiveSmallIntegerField()
+    fiscal_week = models.PositiveSmallIntegerField()
+    day_of_week = models.CharField(max_length=12)
+    day_date = models.DateField()
+    week_end = models.DateField()
+    source_name = models.CharField(max_length=255)
+    headers = models.JSONField(default=list, blank=True)
+    rows = models.JSONField(default=list, blank=True)
+    imported_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-fiscal_year", "-fiscal_week", "day_date"]
+        constraints = [models.UniqueConstraint(fields=["fiscal_year", "fiscal_week", "day_of_week"], name="unique_segment_report_period_day")]
+        verbose_name = "segment report"
+        verbose_name_plural = "segment reports"

@@ -55,13 +55,19 @@ def sanitize_rich_text(value: object) -> str:
     return "".join(parser.output)[:4000]
 
 
-def coming_soon(request: HttpRequest, feature: str) -> HttpResponse:
+def coming_soon(
+    request: HttpRequest,
+    feature: str,
+    section: str | None = None,
+    active_missed_ops_tab: str = "schedules",
+) -> HttpResponse:
     """Render a clear placeholder for navigation sections not yet implemented."""
     context = shell_context(
-        section=feature.lower().replace(" ", "-"),
+        section=section or feature.lower().replace(" ", "-"),
         page_title=feature,
-        eyebrow=feature,
+        eyebrow="Missed Ops" if section == "missed-ops" else feature,
         subtitle=f"{feature} is planned for a future Bearbiz release.",
+        active_missed_ops_tab=active_missed_ops_tab,
         coming_soon_feature=feature,
     )
     return render(request, "coming_soon.html", context)
@@ -75,6 +81,7 @@ REVIEW_MODULES = [
     ("parties", "Last Week Parties"),
     ("product-top-10", "Product Top 10 · Latest Fiscal Week"),
     ("rankings", "Rankings · Last 5 Weeks"),
+    ("missed-ops-review", "Missed Ops Review · Latest Week"),
     ("notes", "Notes"),
 ]
 

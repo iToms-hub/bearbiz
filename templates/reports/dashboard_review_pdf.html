@@ -44,6 +44,7 @@
     tbody tr.report-performer-bottom { background: #fee2e2; font-weight: bold; }
     tbody tr.report-ranking-row-latest { background: #e2f3e6; font-weight: bold; }
     td.review-above-store { background: #d1fae5; font-weight: bold; }
+    td.review-underperformance { background: #fde68a; font-weight: bold; }
     td.review-best-performance { background: #d1fae5; font-weight: bold; }
     .pdf-footer { position: fixed; bottom: -0.48in; left: 0; right: 0; height: 0.36in; color: #555; font-size: 7pt; }
     .pdf-footer-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
@@ -79,10 +80,12 @@
         <p>{{ module.value|default:"No persisted data" }}</p>
       {% elif module.type == 'payroll' %}
         {% if module.payroll %}<table><thead><tr><th>Actual Hours</th><th>Target Hours</th><th>Hours +/-</th><th>Percent to Target</th></tr></thead><tbody><tr><td>{{ module.payroll.total_hours }}</td><td>{{ module.payroll.target_hours }}</td><td>{{ module.payroll.variance }}</td><td>{{ module.payroll.percent }}</td></tr></tbody></table>{% else %}<p class="message">No Payroll data available.</p>{% endif %}
+      {% elif module.type == 'missed-ops-review' %}
+        <table class="report-grid striped missed-ops-review-module-grid"><thead><tr>{% for header in module.headers %}<th>{{ header }}</th>{% endfor %}</tr></thead><tbody>{% for row in module.rows %}<tr>{% for value in row.values %}<td{% if forloop.counter0 == 4 and row.flags.leverage or forloop.counter0 == 5 and row.flags.dpt or forloop.counter0 == 6 and row.flags.conversion or forloop.counter0 == 7 and row.flags.star %} class="review-underperformance"{% endif %}>{{ value }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="8" class="message">{{ module.message }}</td></tr>{% endfor %}</tbody></table>
       {% elif module.type == 'product-top-10' %}
         {% if module.units_rows %}<table class="product-review-tables"><tr><td><h3>Top 10 by Units Sold</h3><table class="report-grid striped"><thead><tr><th>Rank</th><th>Item</th><th>Description</th><th>Department</th><th>Units</th></tr></thead><tbody>{% for row in module.units_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>{{ row.value }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ module.reusable_backpacks.label }}</td><td>{{ module.reusable_backpacks.department }}</td><td>{{ module.reusable_backpacks.units_sold }}</td></tr></tbody></table></td><td><h3>Top 10 by Net Sales</h3><table class="report-grid striped"><thead><tr><th>Rank</th><th>Item</th><th>Description</th><th>Department</th><th>Net Sales</th></tr></thead><tbody>{% for row in module.sales_rows %}<tr><td>{{ row.rank }}</td><td>{{ row.item_number }}</td><td>{{ row.item_description }}</td><td>{{ row.department }}</td><td>{{ row.value }}</td></tr>{% endfor %}<tr class="product-special-row"><td>—</td><td>—</td><td>{{ module.reusable_backpacks.label }}</td><td>{{ module.reusable_backpacks.department }}</td><td>${{ module.reusable_backpacks.net_sales|floatformat:2 }}</td></tr></tbody></table></td></tr></table>{% else %}<p class="message">{{ module.message }}</p>{% endif %}
       {% else %}
-        {% include "reports/review_table.html" with headers=module.headers rows=module.rows %}
+        {% include "reports/review_table.html" with headers=module.headers rows=module.rows table_class=module.table_class %}
       {% endif %}
     </section>
   {% empty %}

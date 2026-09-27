@@ -31,6 +31,7 @@ def left_nav(
     active_section: str,
     active_number: int | None = None,
     active_dashboard_tab: str = "last-week",
+    active_missed_ops_tab: str = "mo-reports",
 ) -> list[dict[str, Any]]:
     dashboard_active = active_section == "dashboard"
     reports_active = active_section == "reports"
@@ -60,8 +61,9 @@ def left_nav(
         },
         {
             "label": "Missed Ops",
-            "url": reverse("missed-ops"),
+            "url": reverse("missed-ops-mo-reports"),
             "active": active_section == "missed-ops",
+            "children": missed_ops_tabs(active_missed_ops_tab) if active_section == "missed-ops" else [],
             "icon_asset": "bearbiz-missed-ops.png",
             "icon_alt": "Stitched shopping bag with a red X icon",
         },
@@ -229,6 +231,19 @@ def _is_newer_version(remote: str, installed: str) -> bool:
     return len(remote_pre) > len(installed_pre)
 
 
+def missed_ops_tabs(active: str = "mo-reports") -> list[dict[str, Any]]:
+    items = [
+        ("mo-reports", "MO Reports", reverse("missed-ops-mo-reports")),
+        ("segments", "Segments", reverse("missed-ops-segments")),
+        ("gantts", "Gantts", reverse("missed-ops-gantts")),
+        ("review", "Review", reverse("missed-ops-review")),
+    ]
+    return [
+        {"label": label, "url": url, "active": slug == active}
+        for slug, label, url in items
+    ]
+
+
 def dashboard_tabs(active: str = "last-week") -> list[dict[str, Any]]:
     return [
         {
@@ -342,6 +357,7 @@ def shell_context(
     page_title: str,
     active_number: int | None = None,
     active_dashboard_tab: str = "last-week",
+    active_missed_ops_tab: str = "mo-reports",
     top_tabs: list[dict[str, Any]] | None = None,
     primary_action: dict[str, str] | None = None,
     subtitle: str = "",
@@ -351,7 +367,7 @@ def shell_context(
         "section": section,
         "page_title": page_title,
         "page_subtitle": subtitle,
-        "left_nav": left_nav(section, active_number, active_dashboard_tab),
+        "left_nav": left_nav(section, active_number, active_dashboard_tab, active_missed_ops_tab),
         "top_tabs": top_tabs or [],
         "primary_action": primary_action,
         "app_version": APP_VERSION,

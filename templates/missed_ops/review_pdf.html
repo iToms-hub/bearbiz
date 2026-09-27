@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ report_pdf_title }}</title>
+  <style>
+    @page { size: Letter portrait; margin: 0.55in 0.5in 0.6in; }
+    * { box-sizing: border-box; }
+    body { color: #20252b; font-family: Arial, sans-serif; font-size: 9pt; }
+    h1 { margin: 0 0 0.08in; font-size: 20pt; }
+    .subtitle { color: #5d6670; margin: 0 0 0.22in; font-size: 9pt; }
+    .criteria { color: #5d6670; font-size: 8pt; margin: 0 0 .14in; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 7.5pt; }
+    th, td { border: 1px solid #aeb8c0; padding: 0.06in 0.05in; text-align: center; vertical-align: middle; overflow-wrap: anywhere; }
+    th { background: #edf1f3; font-weight: bold; }
+    td.review-underperformance { background: #fde68a; font-weight: bold; }
+    .pdf-footer { position: fixed; bottom: -0.48in; left: 0; right: 0; height: 0.36in; color: #555; font-size: 7pt; }
+    .pdf-footer-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    .pdf-footer-table td { width: 33.333%; padding: 0; border: 0; vertical-align: middle; white-space: nowrap; }
+    .pdf-footer-left { text-align: left; }
+    .pdf-footer-center { text-align: center; }
+    .pdf-footer-right { text-align: right; }
+    .pdf-footer img { width: 0.72in; height: 0.28in; object-fit: contain; vertical-align: middle; margin-right: 0.04in; }
+    .pdf-page-counter::before { content: "Page " counter(page) " of " counter(pages); }
+  </style>
+</head>
+<body>
+  <h1>{{ report_pdf_title }}</h1>
+  <p class="subtitle">{{ report_pdf_subtitle }}</p>
+  <p class="criteria">Failed criteria: Leverage &lt; {{ missed_ops_review_criteria.leverage_below }}, DPT &lt; ${{ missed_ops_review_criteria.dpt_below }}, Conversion &lt; {{ missed_ops_review_criteria.conversion_below }}%, STAR &gt; {{ missed_ops_review_criteria.star_above }}</p>
+  {% if missed_ops_review_rows %}
+  <table class="report-grid striped">
+    <thead><tr>{% for header in missed_ops_review_headers %}<th>{{ header }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for row in missed_ops_review_rows %}<tr><td>{{ row.date }}</td><td>{{ row.day }}</td><td>{{ row.segment }}</td><td>{{ row.floor_leader }}</td><td{% if row.flags.leverage %} class="review-underperformance"{% endif %}>{{ row.leverage }}</td><td{% if row.flags.dpt %} class="review-underperformance"{% endif %}>{{ row.dpt }}</td><td{% if row.flags.conversion %} class="review-underperformance"{% endif %}>{{ row.conversion }}</td><td{% if row.flags.star %} class="review-underperformance"{% endif %}>{{ row.star }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% else %}<p>No completed Missed Ops review data is available.</p>{% endif %}
+  <footer class="pdf-footer"><table class="pdf-footer-table"><tr><td class="pdf-footer-left"><img src="{{ report_pdf_logo_url }}" alt="BEARbiZ banner logo"></td><td class="pdf-footer-center">© BEARbiZ 2026 | For internal use only</td><td class="pdf-footer-right"><span class="pdf-page-counter"></span></td></tr></table></footer>
+</body>
+</html>

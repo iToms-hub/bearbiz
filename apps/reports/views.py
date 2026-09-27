@@ -27,7 +27,8 @@ from apps.core.navigation import report_date_tabs, report_tabs, shell_context
 from .catalog import report_config, report_label, report_relation, report_slug
 from .fiscal import as_dict, calculate_fiscal_week
 from .forms import ReportUploadForm
-from .models import BonusClubSummary, GiftCardsSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from .models import BonusClubSummary, GanttReport, GiftCardsSummary, MissedOpportunityReport, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from .missed_ops_review import build_review_rows
 from .modules.bonus_club import BonusClubReport
 from .modules.gift_cards import GiftCardsReport
 from .modules.ranking import RankingReport
@@ -162,6 +163,7 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
         "parties": parties_dashboard_summary() or {"message": "No direct Parties data is available."},
         "product-top-10": product_dashboard_summary() or {"message": "No parsed Product data is available."},
         "rankings": {"headers": _ranking_report_headers(), "rows": _ranking_report_rows(ranking)},
+        "missed-ops-review": _dashboard_missed_ops_review(),
     }
     review_render_modules = []
     for module in (selected.layout if selected else []):
@@ -2267,6 +2269,17 @@ def _dashboard_ranking_summaries(limit: int = 4) -> list[RankingSummary]:
     if limit > 0:
         summaries = summaries[-limit:]
     return summaries
+
+
+def _dashboard_missed_ops_review() -> dict[str, object]:
+    latest = MissedOpportunityReport.objects.order_by("-fiscal_year", "-fiscal_week").first()
+    rows = build_review_rows(latest)
+    return {
+        "headers": ["Date", "Day", "Segment", "Floor Leader", "Leverage", "DPT", "Conversion", "STAR"],
+        "rows": [{"values": [row["date"], row["day"], row["segment"], row["floor_leader"], row["leverage"], row["dpt"], row["conversion"], row["star"]], "flags": row["flags"]} for row in rows],
+        "table_class": "missed-ops-review-module-grid",
+        "message": "Upload the required MO, Segment, and Gantt reports to build this review.",
+    }
 
 
 def _dashboard_segment_summaries(limit: int = 4) -> list[SegmentsSummary]:

@@ -60,7 +60,7 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     assert "template-delete-button" in html
     assert "template-card-actions" in html
     rendered_dropzone = html.split("data-dropzone>", 1)[1].split("</section>", 1)[0]
-    assert rendered_dropzone.count('<article class="template-layout-module"') == 8
+    assert rendered_dropzone.count('<article class="template-layout-module"') == 9
 
     template = ReviewTemplate.objects.get(name="Weekly Review")
     layout = [{"type": "notes", "title": "Notes", "text": "Manager notes"}, {"type": "rankings", "title": "Rankings · Last 5 Weeks"}]

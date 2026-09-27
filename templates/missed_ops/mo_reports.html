@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}MO Reports · Missed Ops{% endblock %}
+{% block content %}
+<section class="panel stack mo-report-page">
+  <div class="mo-report-heading">
+    <div>
+      <h2>MO Reports</h2>
+      <p class="muted">Upload the weekly report to review daily performance and the highest missed-opportunity days.</p>
+    </div>
+    <form method="post" enctype="multipart/form-data" class="mo-upload-form">
+      {% csrf_token %}
+      {{ mo_upload_form.source_file }}
+      <button class="page-action primary" type="submit">Upload MO report</button>
+    </form>
+  </div>
+  {% if mo_error %}<div class="form-errors" role="alert"><p>{{ mo_error }}</p></div>{% endif %}
+  {% if mo_message %}<div class="success-message" role="status">{{ mo_message }}</div>{% endif %}
+
+  <details class="upload-history">
+    <summary>Uploaded MO reports</summary>
+    {% if mo_imports %}<div class="upload-history-list">
+      {% for upload in mo_imports %}<div class="upload-history-row"><span><strong>{{ upload.source_name }}</strong><br><small class="muted">{% if upload.fiscal_week %}FY{{ upload.fiscal_year }} Week {{ upload.fiscal_week }} · {% endif %}{{ upload.uploaded_at|date:"M j, Y g:i A" }} · {{ upload.parse_status|title }}</small></span><form method="post" onsubmit="return confirm('Delete this MO report and its parsed data?');">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="import_id" value="{{ upload.id }}"><button class="page-action danger" type="submit">Delete</button></form></div>{% endfor %}
+    </div>{% else %}<p class="muted">No MO report uploads yet.</p>{% endif %}
+  </details>
+
+  <div class="mo-filter-row">
+    <label for="mo-week">Fiscal week</label>
+    <select id="mo-week" onchange="window.location.href='?week=' + this.value">
+      {% for choice in mo_week_choices %}
+        <option value="{{ choice.fiscal_week }}"{% if choice.selected %} selected{% endif %}>Week {{ choice.fiscal_week }} · ending {{ choice.week_end }}</option>
+      {% endfor %}
+    </select>
+    <span class="muted">FY{{ mo_fiscal_year }}</span>
+  </div>
+
+  {% if selected_report %}
+    <div class="mo-report-meta">
+      <strong>Week {{ selected_report.fiscal_week }}</strong>
+      <span class="muted">Week ending {{ selected_report.week_end }}</span>
+    </div>
+    <div class="table-wrap mo-table-wrap">
+      <table class="report-grid striped mo-report-grid">
+        <thead><tr>{% for header in headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in days %}<tr{% if row.highlight %} class="mo-missed-day"{% endif %}>{% for value in row.values %}<td{% if forloop.counter0 == 0 %} class="mo-day-label"{% endif %}>{{ value|default:"—" }}</td>{% endfor %}</tr>{% endfor %}
+          <tr class="mo-summary-row">{% for value in total.values %}<th scope="row">{{ value|default:"—" }}</th>{% endfor %}</tr>
+          <tr class="mo-target-row">{% for value in target.values %}<td>{{ value|default:"—" }}</td>{% endfor %}</tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted mo-source">Source: {{ selected_report.source_name }}</p>
+  {% else %}
+    <div class="empty-state">No missed opportunity reports are available yet. Upload a weekly PDF to begin.</div>
+  {% endif %}
+</section>
+<style>
+  .mo-report-heading, .mo-filter-row, .mo-report-meta { display: flex; align-items: center; gap: 1rem; }
+  .mo-report-heading { justify-content: space-between; }
+  .mo-upload-form { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .mo-filter-row { margin: .25rem 0 1rem; }
+  .mo-filter-row select { min-width: 15rem; }
+  .mo-report-meta { margin: 0 0 .6rem; }
+  .mo-table-wrap { overflow-x: auto; }
+  .mo-report-grid { min-width: 70rem; table-layout: fixed; font-size: .74rem; }
+  .mo-report-grid th, .mo-report-grid td { padding: .3rem .35rem; line-height: 1.2; overflow-wrap: anywhere; white-space: nowrap; }
+  .mo-report-grid th:nth-child(1), .mo-report-grid td:nth-child(1) { width: 7%; }
+  .mo-report-grid th:nth-child(2), .mo-report-grid td:nth-child(2) { width: 12%; }
+  .mo-report-grid th:nth-child(3), .mo-report-grid td:nth-child(3) { width: 9%; }
+  .mo-report-grid th:nth-child(4), .mo-report-grid td:nth-child(4) { width: 8%; }
+  .mo-report-grid th:nth-child(5), .mo-report-grid td:nth-child(5) { width: 7%; }
+  .mo-report-grid th:nth-child(6), .mo-report-grid td:nth-child(6) { width: 10%; }
+  .mo-report-grid th:nth-child(7), .mo-report-grid td:nth-child(7) { width: 9%; }
+  .mo-report-grid th:nth-child(8), .mo-report-grid td:nth-child(8) { width: 7%; }
+  .mo-report-grid th:nth-child(9), .mo-report-grid td:nth-child(9) { width: 15%; }
+  .mo-report-grid th:nth-child(10), .mo-report-grid td:nth-child(10) { width: 16%; }
+  .mo-report-grid td:not(:first-child), .mo-report-grid th:not(:first-child) { text-align: right; }
+  .mo-report-grid .mo-day-label { text-align: left; font-weight: 650; }
+  .mo-missed-day { background: color-mix(in srgb, #f59e0b 20%, Canvas) !important; font-weight: 650; }
+  .mo-summary-row th, .mo-summary-row td { background: color-mix(in srgb, var(--accent) 14%, Canvas); font-weight: 700; border-top: 2px solid color-mix(in srgb, var(--accent) 55%, var(--border)); }
+  .mo-target-row td { background: color-mix(in srgb, CanvasText 5%, Canvas); font-weight: 650; }
+  .mo-source { margin: .6rem 0 0; font-size: .78rem; }
+  .upload-history { margin: .4rem 0 1rem; border-top: 1px solid var(--border); padding-top: .65rem; }
+  .upload-history summary { cursor: pointer; font-weight: 650; }
+  .upload-history-list { display: grid; gap: .4rem; margin-top: .6rem; }
+  .upload-history-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .5rem .65rem; border: 1px solid var(--border); border-radius: .35rem; }
+  .page-action.danger { color: #b42318; }
+  @media (max-width: 1100px) { .mo-report-heading { align-items: flex-start; flex-direction: column; } .mo-upload-form { width: 100%; } .mo-upload-form input[type=file] { min-width: 0; max-width: 100%; } }
+</style>
+{% endblock %}

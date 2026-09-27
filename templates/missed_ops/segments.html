@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Segments · Missed Ops{% endblock %}
+{% block content %}
+<section class="panel stack segment-page">
+  <div class="segment-heading">
+    <div><h2>Segments</h2><p class="muted">Upload hourly sales reports for this week's largest missed-opportunity days.</p></div>
+    {% if segment_selected_report %}
+    <form method="post" enctype="multipart/form-data" class="segment-upload-form">
+      {% csrf_token %}
+      {{ segment_upload_form.fiscal_week }}
+      {{ segment_upload_form.source_files }}
+      <button class="page-action primary" type="submit">Upload segment PDFs</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if segment_error %}<div class="form-errors" role="alert"><p>{{ segment_error }}</p></div>{% endif %}
+  {% if segment_message %}<div class="success-message" role="status">{{ segment_message }}</div>{% endif %}
+  <details class="upload-history">
+    <summary>Uploaded segment reports</summary>
+    {% if segment_imports %}<div class="upload-history-list">
+      {% for upload in segment_imports %}<div class="upload-history-row"><span><strong>{{ upload.source_name }}</strong><br><small class="muted">{% if upload.fiscal_week %}FY{{ upload.fiscal_year }} Week {{ upload.fiscal_week }} · {{ upload.day_of_week }} · {% endif %}{{ upload.uploaded_at|date:"M j, Y g:i A" }} · {{ upload.parse_status|title }}</small></span><form method="post" onsubmit="return confirm('Delete this segment upload and its parsed data?');">{% csrf_token %}{% if upload.legacy_segment_id %}<input type="hidden" name="action" value="delete_legacy"><input type="hidden" name="segment_id" value="{{ upload.legacy_segment_id }}">{% else %}<input type="hidden" name="action" value="delete"><input type="hidden" name="import_id" value="{{ upload.id }}">{% endif %}<button class="page-action danger" type="submit">Delete</button></form></div>{% endfor %}
+    </div>{% else %}<p class="muted">No segment uploads yet.</p>{% endif %}
+  </details>
+  <div class="segment-filter-row"><label for="segment-week">Fiscal week</label><select id="segment-week" onchange="window.location.href='?week=' + this.value">
+    {% for choice in segment_week_choices %}<option value="{{ choice.fiscal_week }}"{% if choice.selected %} selected{% endif %}>Week {{ choice.fiscal_week }} · ending {{ choice.week_end }}</option>{% endfor %}
+  </select>{% if segment_opportunity_days %}<span class="muted">Days still needed: {{ segment_opportunity_days|join:", " }}</span>{% endif %}</div>
+  {% if segment_reports %}
+    {% for report in segment_reports %}
+      <div class="segment-report-block"><div class="segment-report-title"><strong>{{ report.day }}</strong><span class="muted">{{ report.day_date }}</span></div>
+        <div class="table-wrap segment-table-wrap"><table class="report-grid segment-grid"><thead><tr>{% for header in segment_headers %}<th>{{ header }}</th>{% endfor %}</tr></thead><tbody>{% for row in report.rows %}<tr{% if row.highlight %} class="segment-worst-hour"{% endif %}>{% for value in row.values %}<td>{{ value|default:"—" }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+      </div>
+    {% endfor %}
+  {% elif segment_selected_report %}<div class="empty-state">No segment PDFs have been uploaded for this week yet. Required days: {{ segment_opportunity_days|join:", " }}.</div>
+  {% else %}<div class="empty-state">Upload a missed-opportunity report first to determine the required segment days.</div>{% endif %}
+</section>
+<style>
+.segment-heading,.segment-filter-row,.segment-report-title{display:flex;align-items:center;gap:1rem}.segment-heading{justify-content:space-between}.segment-upload-form{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.segment-filter-row{margin:.25rem 0 1rem}.segment-filter-row select{min-width:15rem}.segment-report-block{margin-top:1rem}.segment-report-title{margin-bottom:.45rem}.segment-table-wrap{overflow-x:auto}.segment-grid{min-width:56rem;table-layout:fixed;font-size:.74rem}.segment-grid th,.segment-grid td{padding:.3rem .35rem;line-height:1.2;white-space:nowrap}.segment-grid th:not(:first-child),.segment-grid td:not(:first-child){text-align:right}.segment-grid th:first-child,.segment-grid td:first-child{width:18%;text-align:left}.segment-grid th:nth-child(2),.segment-grid td:nth-child(2){width:16%}.segment-grid th:nth-child(3),.segment-grid td:nth-child(3){width:14%}.segment-grid th:nth-child(4),.segment-grid td:nth-child(4){width:18%}.segment-grid th:nth-child(5),.segment-grid td:nth-child(5){width:14%}.segment-grid th:nth-child(6),.segment-grid td:nth-child(6){width:10%}.segment-grid th:nth-child(7),.segment-grid td:nth-child(7){width:10%}@media(max-width:1100px){.segment-heading{align-items:flex-start;flex-direction:column}.segment-upload-form input[type=file]{max-width:100%;min-width:0}}
+.upload-history{margin:.4rem 0 1rem;border-top:1px solid var(--border);padding-top:.65rem}.upload-history summary{cursor:pointer;font-weight:650}.upload-history-list{display:grid;gap:.4rem;margin-top:.6rem}.upload-history-row{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.5rem .65rem;border:1px solid var(--border);border-radius:.35rem}.page-action.danger{color:#b42318}
+.segment-worst-hour{background:color-mix(in srgb,#f59e0b 22%,Canvas)!important;font-weight:650}
+</style>
+{% endblock %}

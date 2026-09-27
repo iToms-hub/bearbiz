@@ -55,7 +55,7 @@ def test_primary_navigation_has_expected_routes_and_icon_mapping(monkeypatch: py
         ("Dashboard", "/dashboard/last-week/", False),
         ("Reports", "/reports/", False),
         ("Performance", "/performance/", False),
-        ("Missed Ops", "/missed-ops/", False),
+        ("Missed Ops", "/missed-ops/mo-reports/", False),
         ("Payroll", "/payroll/", False),
         ("Product", "/product/", True),
         ("Parties", "/parties/", False),
@@ -100,22 +100,11 @@ def test_dashboard_subnav_has_foldable_css_and_behavior() -> None:
 
 
 @pytest.mark.django_db()
-@pytest.mark.parametrize(
-    ("name", "feature"),
-    [("missed-ops", "Missed Ops")],
-)
-def test_coming_soon_pages_are_explicit_and_active(name: str, feature: str) -> None:
-    response = Client().get(reverse(name))
+def test_missed_ops_root_redirects_to_mo_reports() -> None:
+    response = Client().get(reverse("missed-ops"))
 
-    assert response.status_code == 200
-    html = response.content.decode()
-    assert f"<h1>{feature}</h1>" in html
-    assert f">{feature}</h2>" in html
-    assert "Coming soon" in html
-    assert "not available yet" in html
-    assert f'aria-label="{feature}"' in html
-    assert 'class="active"' in html
-    assert f'src="/static/images/bearbiz-{name}.png"' in html
+    assert response.status_code == 302
+    assert response["Location"].endswith(reverse("missed-ops-mo-reports"))
 
 
 @pytest.mark.django_db()

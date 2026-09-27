@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Gantts · Missed Ops{% endblock %}
+{% block content %}
+<section class="panel stack gantt-page">
+  <div class="gantt-heading">
+    <div><h2>Gantts</h2><p class="muted">Upload only the Gantt reports required for this week's highest missed-opportunity days.</p></div>
+    {% if gantt_selected_report %}<form method="post" enctype="multipart/form-data" class="gantt-upload-form">{% csrf_token %}{{ gantt_upload_form.source_files }}<button class="page-action primary" type="submit">Upload Gantts</button></form>{% endif %}
+  </div>
+  {% if gantt_error %}<div class="form-errors" role="alert"><p>{{ gantt_error }}</p></div>{% endif %}
+  {% if gantt_message %}<div class="success-message" role="status">{{ gantt_message }}</div>{% endif %}
+  <div class="gantt-week-row"><label for="gantt-week">MO report week</label><select id="gantt-week" onchange="window.location.href='?week=' + this.value">{% for report in gantt_week_choices %}<option value="{{ report.fiscal_week }}"{% if gantt_selected_report.id == report.id %} selected{% endif %}>FY{{ report.fiscal_year }} Week {{ report.fiscal_week }} · ending {{ report.week_end }}</option>{% endfor %}</select></div>
+  {% if gantt_selected_report %}
+    <h3>Gantts needed for the top opportunity days</h3>
+    <div class="gantt-needed-list">
+      {% for day in gantt_required_days %}
+        <article class="gantt-day-card {% if day.report %}gantt-uploaded{% else %}gantt-needed{% endif %}">
+          <div><strong>{{ day.day }}</strong>{% if day.missed_store_sales %}<span class="muted">Missed store sales: {{ day.missed_store_sales }}</span>{% endif %}</div>
+          <span class="gantt-status">{% if day.report %}Uploaded{% else %}Gantt needed{% endif %}</span>
+        </article>
+        {% if day.report %}
+          <div class="table-wrap"><table class="report-grid striped gantt-grid"><thead><tr><th>Segment time</th><th>Floor Leader</th><th>Assignment interval</th></tr></thead><tbody>{% for row in day.floor_leader_rows %}<tr><td>{{ row.segment_time }}</td><td>{{ row.floor_leader }}</td><td>{{ row.interval }}</td></tr>{% empty %}<tr><td colspan="3" class="muted">No Floor Leader assignments found.</td></tr>{% endfor %}</tbody></table></div>
+        {% endif %}
+      {% empty %}<div class="empty-state">No opportunity days are available. Upload an MO report first.</div>{% endfor %}
+    </div>
+  {% else %}<div class="empty-state">Upload an MO report before uploading Gantts.</div>{% endif %}
+  <details class="upload-history"><summary>Uploaded Gantt reports</summary>{% if gantt_imports %}<div class="upload-history-list">{% for upload in gantt_imports %}<div class="upload-history-row"><span><strong>{{ upload.source_name }}</strong><br><small class="muted">{% if upload.day_of_week %}{{ upload.day_of_week }} · FY{{ upload.fiscal_year }} Week {{ upload.fiscal_week }} · {% endif %}{{ upload.uploaded_at|date:"M j, Y g:i A" }} · {{ upload.parse_status|title }}</small></span><form method="post" onsubmit="return confirm('Delete this Gantt report and its parsed data?');">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="import_id" value="{{ upload.id }}"><button class="page-action danger" type="submit">Delete</button></form></div>{% endfor %}</div>{% else %}<p class="muted">No Gantt uploads yet.</p>{% endif %}</details>
+</section>
+<style>
+.gantt-heading,.gantt-week-row{display:flex;align-items:center;gap:1rem}.gantt-heading{justify-content:space-between}.gantt-upload-form{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.gantt-week-row{margin:.25rem 0 1rem}.gantt-week-row select{min-width:18rem}.gantt-needed-list{display:grid;gap:.5rem}.gantt-day-card{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border);border-radius:.4rem;padding:.6rem .75rem}.gantt-day-card div{display:flex;gap:1rem}.gantt-day-card.gantt-needed{border-color:#d97706;background:color-mix(in srgb,#f59e0b 12%,Canvas)}.gantt-day-card.gantt-uploaded{border-color:#15803d;background:color-mix(in srgb,#22c55e 10%,Canvas)}.gantt-status{font-weight:700}.gantt-grid{margin:0 0 .6rem}.upload-history{margin:.6rem 0 0;border-top:1px solid var(--border);padding-top:.65rem}.upload-history summary{cursor:pointer;font-weight:650}.upload-history-list{display:grid;gap:.4rem;margin-top:.6rem}.upload-history-row{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.5rem .65rem;border:1px solid var(--border);border-radius:.35rem}.page-action.danger{color:#b42318}@media(max-width:1100px){.gantt-heading{align-items:flex-start;flex-direction:column}.gantt-upload-form{width:100%}.gantt-upload-form input[type=file]{min-width:0;max-width:100%}.gantt-day-card div{flex-direction:column;gap:.15rem}}
+</style>
+{% endblock %}

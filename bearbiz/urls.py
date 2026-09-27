@@ -5,10 +5,16 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from apps.core.views import coming_soon
 from apps.reports.payroll_views import index as payroll_index
 from apps.reports.product_views import index as product_index
+from apps.reports.gantt_views import index as gantts_index
+from apps.reports.missed_opportunities_views import index as missed_opportunities_index
+from apps.reports.missed_ops_review_views import index as missed_ops_review_index
+from apps.reports.missed_ops_review_views import pdf as missed_ops_review_pdf
+from apps.reports.segment_views import index as segments_index
 from apps.reports.parties_views import delete as parties_delete
 from apps.reports.parties_views import download as parties_download
 from apps.reports.parties_views import index as parties_index
@@ -33,7 +39,12 @@ urlpatterns = [
     path("dashboard/review/", dashboard_review, name="dashboard-review"),
     path("performance/", performance, name="performance"),
     path("performance/pdf/", performance_pdf, name="performance-pdf"),
-    path("missed-ops/", coming_soon, {"feature": "Missed Ops"}, name="missed-ops"),
+    path("missed-ops/", RedirectView.as_view(pattern_name="missed-ops-mo-reports", permanent=False), name="missed-ops"),
+    path("missed-ops/mo-reports/", missed_opportunities_index, name="missed-ops-mo-reports"),
+    path("missed-ops/segments/", segments_index, name="missed-ops-segments"),
+    path("missed-ops/gantts/", gantts_index, name="missed-ops-gantts"),
+    path("missed-ops/review/", missed_ops_review_index, name="missed-ops-review"),
+    path("missed-ops/review/pdf/", missed_ops_review_pdf, name="missed-ops-review-pdf"),
     path("payroll/", payroll_index, name="payroll"),
     path("product/", product_index, name="product"),
     path("parties/uploads/", parties_uploads, name="parties-uploads"),
