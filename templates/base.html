@@ -367,6 +367,13 @@
       .status-badge.warning { background: #a15c00; color: white; }
       .review-template-editor { min-width: 0; }
       .template-toolbar, .template-mock-heading, .template-actions, .template-action-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+      .review-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 0.25rem 0.75rem; }
+      .review-toolbar > h2 { grid-column: 1 / -1; margin: 0; }
+      .review-toolbar-labels, .review-toolbar-controls { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.75rem; align-items: center; }
+      .review-toolbar-labels label { font-size: 0.82rem; font-weight: 650; }
+      .review-toolbar-controls > select, .review-toolbar-controls .inline-form { min-width: 0; width: 100%; }
+      .review-toolbar-controls .inline-form { display: flex; align-items: center; gap: 0.35rem; }
+      .review-toolbar-controls .inline-form select { min-width: 0; flex: 1 1 auto; }
       .template-editor-grid { display: grid; grid-template-columns: minmax(13rem, 0.35fr) minmax(0, 1fr); gap: 0.75rem; align-items: start; }
       .template-module-library, .template-mock-page { border: 1px solid var(--border); border-radius: 0.6rem; padding: 0.6rem; }
       .template-module-library { display: grid; gap: 0.35rem; position: sticky; top: 1rem; }
@@ -755,13 +762,18 @@
       }
       .performance-filter-form {
         display: grid;
-        grid-template-columns: minmax(12rem, 1.35fr) minmax(10rem, 1fr) minmax(9rem, 1fr) minmax(9rem, 1fr) auto;
-        gap: 0.65rem 0.75rem;
+        grid-template-columns: minmax(11rem, 1.25fr) minmax(8rem, 0.9fr) 7.5rem 7.5rem auto;
+        gap: 0.5rem 0.55rem;
         align-items: end;
       }
       .performance-filter-form label { min-width: 0; margin: 0; }
       .performance-filter-form input,
       .performance-filter-form select { width: 100%; min-width: 0; }
+      .performance-filter-form [data-performance-range-field] input {
+        padding-left: 0.45rem;
+        padding-right: 0.35rem;
+        font-size: 0.78rem;
+      }
       .performance-filter-form button { white-space: nowrap; }
       .performance-filter-actions {
         display: inline-flex;

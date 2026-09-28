@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from django.conf import settings
+from django.db.models import Q
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -20,7 +21,7 @@ from django.views.decorators.http import require_POST
 from weasyprint import HTML
 
 from apps.core.ai import summarize_weekly_sales_report
-from apps.core.models import ReviewTemplate
+from apps.core.models import FiscalYearSettings, ReviewTemplate
 from apps.core.views import sanitize_rich_text
 from apps.core.navigation import report_date_tabs, report_tabs, shell_context
 
@@ -45,27 +46,28 @@ REPORTS = {number: config for number in range(1, 7) if (config := report_config(
 def dashboard(request: HttpRequest) -> HttpResponse:
     """Render the dashboard from persisted weekly sales summaries."""
 
-    bonus_club_summary = _dashboard_latest_summary(BonusClubSummary)
+    target_period = _dashboard_target_period()
+    summaries = _dashboard_weekly_sales_summaries(limit=6, target_period=target_period)
+    bonus_club_summary = _dashboard_latest_summary(BonusClubSummary, target_period=target_period)
     bonus_club_value = _dashboard_store_percentage(bonus_club_summary, "capture_rate")
-    gift_cards_summary = _dashboard_latest_summary(GiftCardsSummary)
+    gift_cards_summary = _dashboard_latest_summary(GiftCardsSummary, target_period=target_period)
     gift_cards_value = _dashboard_store_percentage(gift_cards_summary, "bonus_percent")
-    payroll_summary = payroll_dashboard_summary()
-    summaries = _dashboard_weekly_sales_summaries(limit=6)
-    dashboard_title = _dashboard_title(summaries)
+    payroll_summary = payroll_dashboard_summary() if summaries else None
+    dashboard_title = _dashboard_title(summaries, target_period)
     dashboard_headers = _dashboard_weekly_report_headers()
     dashboard_rows = _weekly_report_rows(summaries)
     dashboard_rows.extend(_dashboard_trend_rows(summaries))
-    ranking_summaries = _dashboard_ranking_summaries(limit=4)
+    ranking_summaries = _dashboard_ranking_summaries(limit=4, target_period=target_period)
     ranking_headers = _dashboard_ranking_report_headers()
     ranking_rows = _ranking_report_rows(ranking_summaries)
-    segment_summaries = _dashboard_segment_summaries(limit=1)
+    segment_summaries = _dashboard_segment_summaries(limit=1, target_period=target_period)
     segment_headers = _dashboard_segments_report_headers()
     segment_rows = _dashboard_segment_rows(segment_summaries)
     context = shell_context(
         section="dashboard",
         page_title=dashboard_title,
         eyebrow="Dashboard",
-        subtitle=_dashboard_subtitle(summaries),
+        subtitle=_dashboard_subtitle(summaries, target_period),
         bonus_club_value=bonus_club_value,
         gift_cards_value=gift_cards_value,
         payroll_summary=payroll_summary,
@@ -75,7 +77,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         ranking_rows=ranking_rows,
         segment_headers=segment_headers,
         segment_rows=segment_rows,
-        empty_state="No persisted weekly reports have been wired in yet.",
+        empty_state=_dashboard_empty_state(summaries, target_period),
     )
     if request.GET.get("format") == "json":
         return JsonResponse(
@@ -150,20 +152,32 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
         if selected_id
         else (templates[0] if templates else None)
     )
-    weekly = _dashboard_weekly_sales_summaries(limit=6)
-    ranking = _dashboard_ranking_summaries(limit=5)
-    segment = _dashboard_segment_summaries(limit=1)
+    actual_period = _dashboard_target_period()
+    week_options = _dashboard_review_week_options(actual_period)
+    requested_week = str(request.GET.get("week", "")).strip().upper()
+    selected_option = next((option for option in week_options if option["value"] == requested_week), None)
+    if selected_option is None:
+        selected_option = next(option for option in week_options if option["value"] == f"{actual_period['fiscal_year']}-W{int(actual_period['fiscal_week']):02d}")
+    selected_period = _dashboard_period_for_week(
+        int(selected_option["fiscal_year"]),
+        int(selected_option["fiscal_week"]), actual_period,
+    )
+    weekly = _dashboard_weekly_sales_summaries(limit=6, target_period=selected_period)
+    ranking = _dashboard_ranking_summaries(limit=1, target_period=selected_period)
+    segment = _dashboard_segment_summaries(limit=1, target_period=selected_period)
+    has_weekly_data = bool(weekly)
+    missing_note = _dashboard_empty_state([], selected_period) if not has_weekly_data else ""
     module_data = {
-        "bonus-gift-combined": _dashboard_bonus_gift_table(),
-        "bonus-club": {"value": _dashboard_store_percentage(_dashboard_latest_summary(BonusClubSummary), "capture_rate")},
-        "gift-card-bonus": {"value": _dashboard_store_percentage(_dashboard_latest_summary(GiftCardsSummary), "bonus_percent")},
-        "payroll": {"payroll": payroll_dashboard_summary()},
+        "bonus-gift-combined": _dashboard_bonus_gift_table() if has_weekly_data else {"headers": [], "rows": []},
+        "bonus-club": {"value": _dashboard_store_percentage(_dashboard_latest_summary(BonusClubSummary, selected_period), "capture_rate")},
+        "gift-card-bonus": {"value": _dashboard_store_percentage(_dashboard_latest_summary(GiftCardsSummary, selected_period), "bonus_percent")},
+        "payroll": {"payroll": payroll_dashboard_summary() if has_weekly_data else None},
         "weekly-sales-trend": {"headers": _weekly_report_headers(), "rows": _weekly_report_rows(weekly) + _dashboard_trend_rows(weekly)},
         "segments": {"headers": _segments_report_headers(), "rows": _dashboard_segment_rows(segment)},
-        "parties": parties_dashboard_summary() or {"message": "No direct Parties data is available."},
-        "product-top-10": product_dashboard_summary() or {"message": "No parsed Product data is available."},
+        "parties": parties_dashboard_summary() if has_weekly_data else {"message": missing_note},
+        "product-top-10": product_dashboard_summary() if has_weekly_data else {"message": missing_note},
         "rankings": {"headers": _ranking_report_headers(), "rows": _ranking_report_rows(ranking)},
-        "missed-ops-review": _dashboard_missed_ops_review(),
+        "missed-ops-review": _dashboard_missed_ops_review() if has_weekly_data else {"headers": [], "rows": [], "message": missing_note},
     }
     review_render_modules = []
     for module in (selected.layout if selected else []):
@@ -173,16 +187,18 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
         if rendered_module.get("type") == "bonus-gift-combined" and rendered_module.get("title") == "Bonus Club & Gift Cards":
             rendered_module["title"] = "Last Weeks Bonus Club & Gift Cards"
         review_render_modules.append(rendered_module)
-    review_week = weekly[-1].fiscal_week if weekly else calculate_fiscal_week(
-        _current_date() - timedelta(days=6), _current_date()
-    ).fiscal_week_number
+    review_week = int(selected_option["fiscal_week"])
+    query_suffix = f"template={selected.pk if selected else ''}&week={selected_option['value']}"
     return shell_context(
         section="dashboard", active_dashboard_tab="review", page_title="Last Week Review",
         eyebrow="Dashboard", subtitle="Last Weeks Performance Review",
         review_templates=templates, selected_review_template=selected,
         review_layout=review_render_modules, review_module_data=module_data,
-        report_pdf_title=f"Store 214 Review: Week {int(review_week):02d}",
-        report_pdf_subtitle=f"Business review for week {int(review_week):02d}",
+        review_week_options=week_options, selected_review_week=selected_option["value"],
+        review_week_label=selected_option["label"], review_missing_note=missing_note,
+        review_query_suffix=query_suffix,
+        report_pdf_title=f"Store 214 Review: Week {review_week:02d}",
+        report_pdf_subtitle=f"Business review for week {review_week:02d}",
         report_pdf_logo_url=(Path(settings.STATICFILES_DIRS[0]) / "images" / "bearbiz-banner.png").as_uri(),
     )
 
@@ -2162,43 +2178,132 @@ def _dashboard_reports():
         }
 
 
-def _dashboard_weekly_sales_summaries(limit: int = 6) -> list[WeeklySalesSummary]:
-    summaries = list(
-        getattr(WeeklySalesSummary, "objects")
-        .select_related("report_upload")
-        .order_by("fiscal_year", "fiscal_week", "id")
+def _dashboard_target_period(reference_date: date | None = None) -> dict[str, object]:
+    """Return the last completed fiscal week, without consulting uploads."""
+    reference = reference_date or _current_date()
+    settings = FiscalYearSettings.current()
+    anchor = reference - timedelta(days=7)
+    fiscal_year = int(settings.fiscal_year_for_date(anchor))
+    fiscal_week = int(settings.fiscal_week_for_date(anchor))
+    configured_start = getattr(settings, "fiscal_year_start_date", None)
+    if configured_start:
+        fiscal_start = configured_start
+        if anchor < fiscal_start:
+            fiscal_start = fiscal_start - timedelta(weeks=52)
+    else:
+        fiscal_start = settings.fiscal_year_end(fiscal_year - 1) + timedelta(days=1)
+    period_start = fiscal_start + timedelta(weeks=fiscal_week - 1)
+    return {
+        "fiscal_year": fiscal_year,
+        "fiscal_week": fiscal_week,
+        "period_start": period_start,
+        "period_end": period_start + timedelta(days=6),
+    }
+
+
+def _dashboard_period_for_week(
+    fiscal_year: int,
+    fiscal_week: int,
+    reference_period: dict[str, object],
+) -> dict[str, object]:
+    reference_start = cast(date, reference_period["period_start"])
+    reference_year = int(reference_period["fiscal_year"])
+    reference_week = int(reference_period["fiscal_week"])
+    period_start = reference_start + timedelta(weeks=(fiscal_year - reference_year) * 52 + fiscal_week - reference_week)
+    return {
+        "fiscal_year": fiscal_year,
+        "fiscal_week": fiscal_week,
+        "period_start": period_start,
+        "period_end": period_start + timedelta(days=6),
+    }
+
+
+def _dashboard_review_week_options(target_period: dict[str, object]) -> list[dict[str, object]]:
+    week_keys = {(int(target_period["fiscal_year"]), int(target_period["fiscal_week"]))}
+    for model in (WeeklySalesSummary, RankingSummary, SegmentsSummary, GiftCardsSummary, BonusClubSummary):
+        week_keys.update(
+            (int(fiscal_year), int(fiscal_week))
+            for fiscal_year, fiscal_week in model.objects.values_list("fiscal_year", "fiscal_week").distinct()
+        )
+    options = []
+    for fiscal_year, fiscal_week in sorted(week_keys, reverse=True):
+        period = _dashboard_period_for_week(fiscal_year, fiscal_week, target_period)
+        options.append({
+            "value": f"{fiscal_year}-W{fiscal_week:02d}",
+            "label": f"Fiscal Week {fiscal_week:02d} · {cast(date, period['period_start']):%m/%d/%y} to {cast(date, period['period_end']):%m/%d/%y}",
+            "fiscal_year": fiscal_year,
+            "fiscal_week": fiscal_week,
+        })
+    return options
+
+
+def _dashboard_week_matches(summary: Any, target_period: dict[str, object] | None) -> bool:
+    if not target_period:
+        return True
+    return (
+        int(getattr(summary, "fiscal_year", 0)) == int(target_period["fiscal_year"])
+        and int(getattr(summary, "fiscal_week", 0)) == int(target_period["fiscal_week"])
     )
-    if limit > 0:
-        summaries = summaries[-limit:]
+
+
+def _dashboard_weekly_sales_summaries(
+    limit: int = 6,
+    target_period: dict[str, object] | None = None,
+) -> list[WeeklySalesSummary]:
+    queryset = getattr(WeeklySalesSummary, "objects").select_related("report_upload")
+    if target_period:
+        fiscal_year = int(target_period["fiscal_year"])
+        fiscal_week = int(target_period["fiscal_week"])
+        queryset = queryset.filter(
+            Q(fiscal_year__lt=fiscal_year)
+            | Q(fiscal_year=fiscal_year, fiscal_week__lte=fiscal_week)
+        )
+        if not queryset.filter(fiscal_year=fiscal_year, fiscal_week=fiscal_week).exists():
+            return []
+    queryset = queryset.order_by("-fiscal_year", "-fiscal_week", "-id")
+    summaries = list(queryset[:limit] if limit > 0 else queryset)
+    summaries.reverse()
     return summaries
 
 
-def _dashboard_title(summaries: list[WeeklySalesSummary]) -> str:
-    if not summaries:
-        return "214 Temecula"
-    return f"214 Temecula: Week {summaries[-1].fiscal_week:02d}"
+def _dashboard_title(summaries: list[WeeklySalesSummary], target_period: dict[str, object] | None = None) -> str:
+    week = target_period["fiscal_week"] if target_period else (summaries[-1].fiscal_week if summaries else None)
+    return f"214 Temecula: Week {int(week):02d}" if week else "214 Temecula"
 
 
-def _dashboard_subtitle(summaries: list[WeeklySalesSummary]) -> str:
-    if not summaries:
+def _dashboard_subtitle(summaries: list[WeeklySalesSummary], target_period: dict[str, object] | None = None) -> str:
+    if target_period:
+        period_start = cast(date, target_period["period_start"])
+        period_end = cast(date, target_period["period_end"])
+    elif summaries:
+        latest = summaries[-1]
+        period_end = cast(date | None, latest.fiscal_period_end)
+        period_start = cast(date | None, latest.fiscal_period_start)
+        if period_end and period_start is None:
+            period_start = period_end - timedelta(days=6)
+    else:
         return "Last week performance"
-    latest = summaries[-1]
-    period_end = cast(date | None, latest.fiscal_period_end)
-    period_start = cast(date | None, latest.fiscal_period_start)
-    if period_end and period_start is None:
-        period_start = period_end - timedelta(days=6)
     if period_start and period_end:
         return f"Last week performance for {period_start:%m/%d/%y} to {period_end:%m/%d/%y}"
     return "Last week performance"
 
 
-def _dashboard_latest_summary(model: type[Any]) -> Any | None:
-    summaries = list(
-        getattr(model, "objects")
-        .select_related("report_upload")
-        .order_by("fiscal_year", "fiscal_week", "id")
-    )
-    return summaries[-1] if summaries else None
+def _dashboard_latest_summary(model: type[Any], target_period: dict[str, object] | None = None) -> Any | None:
+    queryset = getattr(model, "objects").select_related("report_upload")
+    if target_period:
+        queryset = queryset.filter(
+            fiscal_year=int(target_period["fiscal_year"]),
+            fiscal_week=int(target_period["fiscal_week"]),
+        )
+    return queryset.order_by("-fiscal_year", "-fiscal_week", "-id").first()
+
+
+def _dashboard_empty_state(summaries: list[WeeklySalesSummary], target_period: dict[str, object]) -> str:
+    if summaries:
+        return "No persisted weekly reports are available for this fiscal week."
+    start = cast(date, target_period["period_start"])
+    end = cast(date, target_period["period_end"])
+    return f"Missing reports for Fiscal Week {int(target_period['fiscal_week']):02d}: {start:%m/%d/%y} to {end:%m/%d/%y}."
 
 
 def _dashboard_store_percentage(summary: Any | None, metric_key: str) -> str:
@@ -2260,14 +2365,16 @@ def _dashboard_bonus_gift_table() -> dict[str, object]:
     return {"headers": headers, "rows": rows}
 
 
-def _dashboard_ranking_summaries(limit: int = 4) -> list[RankingSummary]:
-    summaries = list(
-        getattr(RankingSummary, "objects")
-        .select_related("report_upload")
-        .order_by("fiscal_year", "fiscal_week", "id")
-    )
-    if limit > 0:
-        summaries = summaries[-limit:]
+def _dashboard_ranking_summaries(limit: int = 4, target_period: dict[str, object] | None = None) -> list[RankingSummary]:
+    queryset = getattr(RankingSummary, "objects").select_related("report_upload")
+    if target_period:
+        queryset = queryset.filter(
+            fiscal_year=int(target_period["fiscal_year"]),
+            fiscal_week=int(target_period["fiscal_week"]),
+        )
+    queryset = queryset.order_by("-fiscal_year", "-fiscal_week", "-id")
+    summaries = list(queryset[:limit] if limit > 0 else queryset)
+    summaries.reverse()
     return summaries
 
 
@@ -2282,14 +2389,16 @@ def _dashboard_missed_ops_review() -> dict[str, object]:
     }
 
 
-def _dashboard_segment_summaries(limit: int = 4) -> list[SegmentsSummary]:
-    summaries = list(
-        getattr(SegmentsSummary, "objects")
-        .select_related("report_upload")
-        .order_by("fiscal_year", "fiscal_week", "id")
-    )
-    if limit > 0:
-        summaries = summaries[-limit:]
+def _dashboard_segment_summaries(limit: int = 4, target_period: dict[str, object] | None = None) -> list[SegmentsSummary]:
+    queryset = getattr(SegmentsSummary, "objects").select_related("report_upload")
+    if target_period:
+        queryset = queryset.filter(
+            fiscal_year=int(target_period["fiscal_year"]),
+            fiscal_week=int(target_period["fiscal_week"]),
+        )
+    queryset = queryset.order_by("-fiscal_year", "-fiscal_week", "-id")
+    summaries = list(queryset[:limit] if limit > 0 else queryset)
+    summaries.reverse()
     return summaries
 
 

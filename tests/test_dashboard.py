@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from datetime import date
 
+from django.test import Client
+from django.urls import reverse
+
 from apps.reports.base import ParsedReport
+from apps.core.models import FiscalYearSettings, ReviewTemplate
 from apps.reports.dashboard import build_six_week_dashboard, iso_week_key, week_windows
+from apps.reports.views import _dashboard_target_period
 
 
 def make_report(day: date, **metrics: float) -> ParsedReport:
@@ -18,9 +23,57 @@ def make_report(day: date, **metrics: float) -> ParsedReport:
     )
 
 
+def test_dashboard_blanks_stale_data_and_identifies_missing_target_week(db) -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+
+    response = Client().get(reverse("dashboard"))
+
+    html = response.content.decode()
+    assert "214 Temecula: Week 34" in html
+    assert "Last week performance for 09/20/26 to 09/26/26" in html
+    assert "Missing reports for Fiscal Week 34: 09/20/26 to 09/26/26." in html
+    assert "No Payroll data available." in html
+
+
+def test_dashboard_review_defaults_to_actual_week_and_shows_missing_note(db) -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    template = ReviewTemplate.objects.create(name="Weekly review", layout=[])
+
+    response = Client().get(reverse("dashboard-review"), {"template": template.pk})
+
+    html = response.content.decode()
+    assert "review-week-select" in html
+    assert "Fiscal Week 34 · 09/20/26 to 09/26/26" in html
+    assert "Missing reports for Fiscal Week 34: 09/20/26 to 09/26/26." in html
+
+
+def test_dashboard_target_period_is_last_completed_fiscal_week(db) -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+
+    target = _dashboard_target_period(reference_date=date(2026, 9, 28))
+
+    assert target == {
+        "fiscal_year": 2027,
+        "fiscal_week": 34,
+        "period_start": date(2026, 9, 20),
+        "period_end": date(2026, 9, 26),
+    }
+
+
+def test_dashboard_target_period_does_not_follow_uploaded_data(db) -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+
+    target = _dashboard_target_period(reference_date=date(2026, 10, 5))
+
+    assert target["fiscal_week"] == 35
+    assert target["period_start"] == date(2026, 9, 27)
+    assert target["period_end"] == date(2026, 10, 3)
+
+
 def test_parsed_report_defaults_raw_rows_to_empty_list() -> None:
     report = ParsedReport(report_type="weekly_sales", source_name="sample.pdf")
     assert report.raw_rows == []
+
 
 
 def test_parsed_report_keeps_raw_rows_intact() -> None:

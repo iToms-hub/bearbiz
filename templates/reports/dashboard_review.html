@@ -2,19 +2,25 @@
 {% block title %}Last Week Review · Bearbiz{% endblock %}
 {% block content %}
   <section class="panel stack">
-    <div class="template-toolbar">
-      <div>
-        <h2>Last Week Review</h2>
-        <p class="muted">{{ selected_review_template.name|default:"No review template selected" }}</p>
-      </div>
-      <div class="inline-form">
+    <div class="template-toolbar review-toolbar">
+      <h2>Last Week Review</h2>
+      <div class="review-toolbar-labels">
+        <label for="review-week-select">Week</label>
         <label for="review-template-select">Template</label>
-        <select id="review-template-select" onchange="if (this.value) window.location=this.value">
-          {% for item in review_templates %}<option value="{% url 'dashboard-review' %}?template={{ item.id }}"{% if item.id == selected_review_template.id %} selected{% endif %}>{{ item.name }}</option>{% empty %}<option>No templates saved</option>{% endfor %}
+      </div>
+      <div class="review-toolbar-controls">
+        <select id="review-week-select" onchange="if (this.value) window.location=this.value">
+          {% for item in review_week_options %}<option value="{% url 'dashboard-review' %}?template={{ selected_review_template.id }}&week={{ item.value }}"{% if item.value == selected_review_week %} selected{% endif %}>{{ item.label }}</option>{% endfor %}
         </select>
-        {% if selected_review_template %}<a class="page-action primary" href="{% url 'dashboard-review-pdf' %}?template={{ selected_review_template.id }}">Download PDF</a>{% endif %}
+        <div class="inline-form">
+          <select id="review-template-select" onchange="if (this.value) window.location=this.value">
+            {% for item in review_templates %}<option value="{% url 'dashboard-review' %}?template={{ item.id }}&week={{ selected_review_week }}"{% if item.id == selected_review_template.id %} selected{% endif %}>{{ item.name }}</option>{% empty %}<option>No templates saved</option>{% endfor %}
+          </select>
+          {% if selected_review_template %}<a class="page-action primary" href="{% url 'dashboard-review-pdf' %}?{{ review_query_suffix }}">Download PDF</a>{% endif %}
+        </div>
       </div>
     </div>
+    {% if review_missing_note %}<p class="empty">{{ review_missing_note }}</p>{% endif %}
   </section>
   {% if review_layout %}
     <div class="review-layout">
