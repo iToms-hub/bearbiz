@@ -114,7 +114,7 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     assert "Manager Sign Off" in pdf_text
     assert "Reviewed by manager initials:" not in pdf_text
     assert "Review date:" not in pdf_text
-    assert "Page 2 of 2" in pdf_text
+    assert "Page 1 of 1" in pdf_text
     pdf_template = (ROOT / "templates/reports/dashboard_review_pdf.html").read_text()
     assert "td.review-above-store" in pdf_template
     assert "tbody tr.report-week-row-latest" in pdf_template
