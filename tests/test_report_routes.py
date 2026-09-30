@@ -85,7 +85,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert 'class="upload-file-row"' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.3.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.3.1' in history_html
         assert "Uploaded reports" in history_html
         assert "Settings" in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
@@ -227,6 +227,37 @@ def test_report_goals_save_and_render_in_review_and_pdf(client: Client) -> None:
     pdf_text = "\n".join(page.get_text() for page in fitz.open(stream=pdf.content, filetype="pdf"))
     assert "Goal: Club % 77%" in pdf_text
     assert "Goal: GC% 22.5%" in pdf_text
+
+
+@pytest.mark.django_db()
+def test_dashboard_review_rankings_shows_last_five_weeks(client: Client) -> None:
+    for fiscal_week in range(30, 35):
+        upload = ReportUpload.objects.create(
+            source_file=SimpleUploadedFile(f"ranking-{fiscal_week}.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf"),
+            source_name=f"ranking-{fiscal_week}.pdf",
+            report_type="ranking",
+            parse_status="parsed",
+        )
+        RankingSummary.objects.create(
+            report_upload=upload,
+            fiscal_year=2026,
+            fiscal_week=fiscal_week,
+            fiscal_period_start=date(2026, 7, 19) + timedelta(weeks=fiscal_week - 30),
+            fiscal_period_end=date(2026, 7, 25) + timedelta(weeks=fiscal_week - 30),
+            raw_json={
+                "parse_version": 2,
+                "fiscal": {"fiscal_year": 2026, "fiscal_week_number": fiscal_week, "week_ending_date": "2026-08-23"},
+                "target_store": {"store_number": "214", "store_name": "Temecula", "ranks": {key: {"rank": 1, "total": 5} for key in ("sales", "sales_v_plan", "sales_v_ly", "dpt", "upt", "parties", "traffic_bw", "conv_ty", "conv_bw", "stuffers")}},
+            },
+        )
+    template = ReviewTemplate.objects.create(name="Ranking review", layout=[{"type": "rankings", "title": "Rankings · Last 5 Weeks"}])
+
+    response = client.get(reverse("dashboard-review"), {"template": template.pk, "week": "2026-W34"})
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert html.count(">1/5<") == 50
+    assert "No persisted data available." not in html
 
 
 @pytest.mark.django_db()
@@ -1365,7 +1396,7 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         assert 'Select a PDF' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.3.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.3.1' in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
         assert 'aria-label="Section tabs"' not in history_html
 

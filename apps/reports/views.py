@@ -163,7 +163,7 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
         int(selected_option["fiscal_week"]), actual_period,
     )
     weekly = _dashboard_weekly_sales_summaries(limit=6, target_period=selected_period)
-    ranking = _dashboard_ranking_summaries(limit=1, target_period=selected_period)
+    ranking = _dashboard_ranking_summaries(limit=5, target_period=selected_period, through_target_period=True)
     segment = _dashboard_segment_summaries(limit=1, target_period=selected_period)
     has_weekly_data = bool(weekly)
     missing_note = _dashboard_empty_state([], selected_period) if not has_weekly_data else ""
@@ -2385,13 +2385,19 @@ def _dashboard_bonus_gift_table() -> dict[str, object]:
     return {"headers": headers, "rows": rows}
 
 
-def _dashboard_ranking_summaries(limit: int = 4, target_period: dict[str, object] | None = None) -> list[RankingSummary]:
+def _dashboard_ranking_summaries(
+    limit: int = 4,
+    target_period: dict[str, object] | None = None,
+    through_target_period: bool = False,
+) -> list[RankingSummary]:
     queryset = getattr(RankingSummary, "objects").select_related("report_upload")
     if target_period:
-        queryset = queryset.filter(
-            fiscal_year=int(target_period["fiscal_year"]),
-            fiscal_week=int(target_period["fiscal_week"]),
-        )
+        fiscal_year = int(target_period["fiscal_year"])
+        fiscal_week = int(target_period["fiscal_week"])
+        if through_target_period:
+            queryset = queryset.filter(Q(fiscal_year__lt=fiscal_year) | Q(fiscal_year=fiscal_year, fiscal_week__lte=fiscal_week))
+        else:
+            queryset = queryset.filter(fiscal_year=fiscal_year, fiscal_week=fiscal_week)
     queryset = queryset.order_by("-fiscal_year", "-fiscal_week", "-id")
     summaries = list(queryset[:limit] if limit > 0 else queryset)
     summaries.reverse()
