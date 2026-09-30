@@ -6,12 +6,15 @@ from html.parser import HTMLParser
 import os
 import re
 import fcntl
+import shutil
 import subprocess
+import tempfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 from django.conf import settings as django_settings
-from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
@@ -279,6 +282,8 @@ def ai_connection_test(request: HttpRequest) -> JsonResponse:
 @require_POST
 def backup_action(request: HttpRequest) -> HttpResponse:
     action = request.POST.get("action")
+    if action == "upload":
+        return _backup_upload(request)
     if action == "restore-select":
         return _restore_selection(request)
     if action == "restore-cancel":
@@ -307,6 +312,70 @@ def backup_action(request: HttpRequest) -> HttpResponse:
         return _backup_page(request, f"Backup {action} failed: {detail}", False)
     message = "Backup completed successfully." if action == "run" else "Latest backup verified successfully."
     return _backup_page(request, message, True)
+
+
+@require_GET
+def backup_download(request: HttpRequest) -> HttpResponse:
+    backup_id = str(request.GET.get("backup_id") or "")
+    snapshot = backup_snapshot()
+    record = next((item for item in snapshot["records"] if item["id"] == backup_id), None) if backup_id else snapshot.get("latest_full")
+    if not isinstance(record, dict) or record.get("type") != "full" or not record.get("full_restore_available"):
+        raise Http404("No verified full backup is available for download.")
+    root = Path(os.environ.get("BACKUP_ROOT", str(Path.home() / "backups" / "bearbiz")))
+    source = root / str(record["id"])
+    archive = tempfile.NamedTemporaryFile(prefix="bearbiz-", suffix=".zip")
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
+        for name in ("manifest.txt", "database.dump", "media.tar.gz", "SHA256SUMS"):
+            bundle.write(source / name, arcname=name)
+    archive.seek(0)
+    return FileResponse(archive, as_attachment=True, filename=f"bearbiz-{record['id']}.zip", content_type="application/zip")
+
+
+def _backup_upload(request: HttpRequest) -> HttpResponse:
+    uploaded = request.FILES.get("backup_zip")
+    if uploaded is None or not str(uploaded.name or "").lower().endswith(".zip"):
+        return _backup_page(request, "Choose a .zip complete backup file.", False)
+    if uploaded.size > 20 * 1024 * 1024 * 1024:
+        return _backup_page(request, "The backup ZIP is larger than the 20 GB upload limit.", False)
+    root = Path(os.environ.get("BACKUP_ROOT", str(Path.home() / "backups" / "bearbiz")))
+    root.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".import-", dir=root))
+    try:
+        with zipfile.ZipFile(uploaded) as bundle:
+            names = [info.filename for info in bundle.infolist() if not info.is_dir()]
+            allowed = {"manifest.txt", "database.dump", "media.tar.gz", "SHA256SUMS"}
+            if set(names) != allowed or any("/" in name or "\\" in name for name in names):
+                return _backup_page(request, "The ZIP must contain exactly manifest.txt, database.dump, media.tar.gz, and SHA256SUMS.", False)
+            if sum(info.file_size for info in bundle.infolist()) > 40 * 1024 * 1024 * 1024:
+                return _backup_page(request, "The uncompressed backup exceeds the 40 GB safety limit.", False)
+            for name in allowed:
+                with bundle.open(name) as source, (staging / name).open("wb") as target:
+                    shutil.copyfileobj(source, target, length=1024 * 1024)
+        manifest = _read_manifest(staging / "manifest.txt")
+        backup_id = manifest.get("backup_id", "")
+        if not _backup_id(backup_id) or manifest.get("mode") != "full":
+            return _backup_page(request, "The ZIP is not a valid complete Bearbiz backup.", False)
+        destination = root / backup_id
+        if destination.exists():
+            return _backup_page(request, f"Backup {backup_id} already exists.", False)
+        (staging / "SHA256SUMS").read_text()
+        (staging / "database.dump").stat()
+        (staging / "media.tar.gz").stat()
+        staging.rename(destination)
+        result = subprocess.run(
+            [str(_backup_script()), "verify", backup_id], cwd=django_settings.BASE_DIR,
+            env=os.environ.copy(), capture_output=True, text=True, timeout=900, check=False,
+        )
+        if result.returncode:
+            shutil.rmtree(destination, ignore_errors=True)
+            return _backup_page(request, "The uploaded backup failed verification and was discarded.", False)
+        request.session["backup_restore"] = {"id": backup_id, "mode": "full"}
+        return _backup_page(request, f"Backup {backup_id} uploaded and verified. Confirm the full restore below.", True)
+    except (OSError, ValueError, zipfile.BadZipFile, zipfile.LargeZipFile, subprocess.SubprocessError) as exc:
+        return _backup_page(request, f"Backup upload failed safely: {exc}", False)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
 
 
 def _restore_selection(request: HttpRequest) -> HttpResponse:
@@ -384,6 +453,7 @@ def backup_snapshot() -> dict[str, object]:
             records[-1]["full_restore_available"] = _restore_record_from_path(path, records[-1], "full") is not None
     records.sort(key=lambda item: item["created"], reverse=True)
     latest = records[0] if records else None
+    latest_full = next((item for item in records if item.get("type") == "full" and item.get("full_restore_available")), None)
     status = _read_backup_status(root / "status.json")
     schedule = status.get("schedule") or os.environ.get("BACKUP_SCHEDULE") or "Not configured - run manually."
     if status.get("state") == "failed":
@@ -397,7 +467,7 @@ def backup_snapshot() -> dict[str, object]:
         storage_warning = "Named-volume backups remain on this deployment host; copy them off-host for disaster recovery."
     return {
         "status": "healthy" if latest and latest["verified"] == "verified" and status.get("state") != "failed" else "warning",
-        "records": records, "latest": latest, "count": len(records),
+        "records": records, "latest": latest, "latest_full": latest_full, "count": len(records),
         "last_attempted": status.get("last_attempted") or (latest["timestamp"] if latest else "None recorded"),
         "last_failed": status.get("last_failed", "None recorded"), "failure_reason": status.get("failure_reason", ""),
         "storage_path": str(root), "schedule": schedule, "storage_warning": storage_warning,

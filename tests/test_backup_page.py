@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import io
+import zipfile
 from pathlib import Path
 from subprocess import CompletedProcess
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from apps.core import views
@@ -93,6 +96,53 @@ def test_backup_history_renders_mode_select_before_restore_button(client, monkey
     assert '<option value="db-only">Database only</option>' in html
     assert '<option value="full">Database + media</option>' in html
     assert html.index(select) < html.index('class="restore-button"')
+
+
+@pytest.mark.django_db
+def test_complete_backup_download_contains_database_media_manifest_and_checksums(client, tmp_path: Path, monkeypatch) -> None:
+    backup_root = tmp_path / "backups"
+    backup_dir = backup_root / "20260908T120000Z"
+    backup_dir.mkdir(parents=True)
+    for name, content in {
+        "manifest.txt": b"backup_id=20260908T120000Z\nmode=full\n",
+        "database.dump": b"database",
+        "media.tar.gz": b"media",
+        "SHA256SUMS": b"checksums",
+    }.items():
+        (backup_dir / name).write_bytes(content)
+    monkeypatch.setenv("BACKUP_ROOT", str(backup_root))
+    monkeypatch.setattr(views, "_verification_state", lambda path: "verified")
+
+    response = client.get(reverse("settings:backup-download"))
+
+    assert response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(b"".join(response.streaming_content))) as bundle:
+        assert set(bundle.namelist()) == {"manifest.txt", "database.dump", "media.tar.gz", "SHA256SUMS"}
+
+
+@pytest.mark.django_db
+def test_uploaded_complete_backup_is_verified_and_requires_restore_confirmation(client, tmp_path: Path, monkeypatch) -> None:
+    backup_id = "20260908T120000Z"
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as bundle:
+        bundle.writestr("manifest.txt", f"backup_id={backup_id}\nmode=full\n")
+        bundle.writestr("database.dump", b"database")
+        bundle.writestr("media.tar.gz", b"media")
+        bundle.writestr("SHA256SUMS", b"checksums")
+    record = {"id": backup_id, "timestamp": "2026-09-08T12:00:00Z", "verified": "verified", "size_display": "1 KB", "full_restore_available": True}
+    monkeypatch.setenv("BACKUP_ROOT", str(tmp_path / "backups"))
+    monkeypatch.setattr(views, "_verification_state", lambda path: "verified")
+    monkeypatch.setattr(views, "backup_snapshot", lambda: {"records": [record], "latest": record, "latest_full": record, "count": 1, "storage_path": "/backups", "schedule": "manual", "retention": "7", "last_attempted": "None", "last_failed": "None", "failure_reason": "", "status": "healthy", "status_message": "A verified backup is available."})
+    monkeypatch.setattr(views.subprocess, "run", lambda *args, **kwargs: CompletedProcess(args[0], 0, stdout="", stderr=""))
+
+    response = client.post(reverse("settings:backup-action"), {
+        "action": "upload",
+        "backup_zip": SimpleUploadedFile("bearbiz.zip", payload.getvalue(), content_type="application/zip"),
+    })
+
+    assert response.status_code == 200
+    assert b"Confirm restore" in response.content
+    assert client.session["backup_restore"] == {"id": backup_id, "mode": "full"}
 
 
 @pytest.mark.django_db
