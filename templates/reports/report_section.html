@@ -14,6 +14,16 @@
         {% endfor %}
       </div>
       <div class="report-toolbar-actions">
+        {% if report_goal_form %}
+          <form method="post" class="report-goal-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save-goal">
+            <label for="{{ report_goal_form.goal.id_for_label }}">Goal</label>
+            {{ report_goal_form.goal }}
+            <span>%</span>
+            <button type="submit">Save</button>
+          </form>
+        {% endif %}
         <a class="page-action pdf-action" href="{{ report_pdf_url }}" download="{{ report_pdf_filename }}">PDF</a>
         {% if report_upload_url %}
           <a class="page-action upload-action" href="{{ report_upload_url }}">Uploads</a>

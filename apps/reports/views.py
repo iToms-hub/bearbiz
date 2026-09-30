@@ -27,8 +27,8 @@ from apps.core.navigation import report_date_tabs, report_tabs, shell_context
 
 from .catalog import report_config, report_label, report_relation, report_slug
 from .fiscal import as_dict, calculate_fiscal_week
-from .forms import ReportUploadForm
-from .models import BonusClubSummary, GanttReport, GiftCardsSummary, MissedOpportunityReport, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from .forms import ReportGoalForm, ReportUploadForm
+from .models import BonusClubSummary, GanttReport, GiftCardsSummary, MissedOpportunityReport, RankingSummary, ReportGoalSettings, ReportUpload, SegmentsSummary, WeeklySalesSummary
 from .missed_ops_review import build_review_rows
 from .modules.bonus_club import BonusClubReport
 from .modules.gift_cards import GiftCardsReport
@@ -169,8 +169,8 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
     missing_note = _dashboard_empty_state([], selected_period) if not has_weekly_data else ""
     module_data = {
         "bonus-gift-combined": _dashboard_bonus_gift_table() if has_weekly_data else {"headers": [], "rows": []},
-        "bonus-club": {"value": _dashboard_store_percentage(_dashboard_latest_summary(BonusClubSummary, selected_period), "capture_rate")},
-        "gift-card-bonus": {"value": _dashboard_store_percentage(_dashboard_latest_summary(GiftCardsSummary, selected_period), "bonus_percent")},
+        "bonus-club": {"value": _dashboard_store_percentage(_dashboard_latest_summary(BonusClubSummary, selected_period), "capture_rate"), "goal": _report_goal_display("bonus_club")},
+        "gift-card-bonus": {"value": _dashboard_store_percentage(_dashboard_latest_summary(GiftCardsSummary, selected_period), "bonus_percent"), "goal": _report_goal_display("gift_cards")},
         "payroll": {"payroll": payroll_dashboard_summary() if has_weekly_data else None},
         "weekly-sales-trend": {"headers": _weekly_report_headers(), "rows": _weekly_report_rows(weekly) + _dashboard_trend_rows(weekly)},
         "segments": {"headers": _segments_report_headers(), "rows": _dashboard_segment_rows(segment)},
@@ -507,6 +507,19 @@ def _performance_chart_svg(series: list[dict[str, object]]) -> str:
 
 
 def report_section(request: HttpRequest, number: int = 1) -> HttpResponse:
+    report = REPORTS.get(number)
+    if report is None:
+        raise Http404("Unknown report type.")
+    report_type = str(report.get("slug") or "")
+    if request.method == "POST" and request.POST.get("action") == "save-goal" and report_type in {"gift_cards", "bonus_club"}:
+        goal_form = ReportGoalForm(request.POST, report_type=report_type)
+        if goal_form.is_valid():
+            goal_form.save()
+            query = request.META.get("QUERY_STRING", "")
+            return redirect(f"{request.path}?{query}" if query else request.path)
+        context = _report_context(request, number)
+        context["report_goal_form"] = goal_form
+        return render(request, "reports/report_section.html", context, status=400)
     context = _report_context(request, number)
     return render(request, "reports/report_section.html", context)
 
@@ -601,6 +614,7 @@ def _report_context(request: HttpRequest, number: int) -> dict[str, Any]:
         report_view_note=str(report_date_state.get("note") or report.get("viewer_note", "Newest week first, with each week in its own row.")),
         report_table_class=report_date_state["table_class"],
         report_period_label=report_date_state["period_label"],
+        report_goal_form=(ReportGoalForm(report_type=report_type) if report_type in {"gift_cards", "bonus_club"} else None),
         report_pdf_period_label=(
             ""
             if report_type in {"gift_cards", "bonus_club"}
@@ -632,7 +646,7 @@ def report_history(request: HttpRequest, number: int = 1) -> HttpResponse:
         if form.is_valid():
             upload = form.save(report_type=report_type)
             _parse_and_store_summary(upload)
-            return redirect("reports:detail", pk=upload.pk)
+            return redirect("reports:report-number", number=number)
     else:
         form = ReportUploadForm()
 
@@ -2314,6 +2328,12 @@ def _dashboard_store_percentage(summary: Any | None, metric_key: str) -> str:
     store_total = store_total_obj if isinstance(store_total_obj, dict) else {}
     metrics_obj = store_total.get("metrics") if isinstance(store_total.get("metrics"), dict) else {}
     return _format_percent(metrics_obj.get(metric_key))
+
+
+def _report_goal_display(report_type: str) -> str:
+    settings = ReportGoalSettings.current()
+    value = settings.gift_card_goal if report_type == "gift_cards" else settings.bonus_club_goal
+    return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
 def _dashboard_bonus_gift_table() -> dict[str, object]:

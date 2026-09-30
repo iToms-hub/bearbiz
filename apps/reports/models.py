@@ -13,6 +13,23 @@ class ParseStatus(models.TextChoices):
     CONFLICT = "conflict", "Conflict"
 
 
+class ReportGoalSettings(models.Model):
+    """Singleton targets displayed with the Gift Cards and Bonus Club reports."""
+
+    singleton_key = models.PositiveSmallIntegerField(default=1, unique=True, editable=False)
+    gift_card_goal = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("18.00"))
+    bonus_club_goal = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("80.00"))
+
+    def save(self, *args, **kwargs):
+        self.singleton_key = 1
+        return super().save(*args, **kwargs)
+
+    @classmethod
+    def current(cls) -> "ReportGoalSettings":
+        instance = cls.objects.order_by("pk").first()
+        return instance if instance is not None else cls()
+
+
 def report_upload_path(instance: "ReportUpload", filename: str) -> str:
     return f"reports/{instance.report_type}/{filename}"
 

@@ -69,7 +69,7 @@
 
   {% for module in review_layout %}
     <section class="module">
-      <h2>{{ module.title }}{% if module.type == 'bonus-club' %}<br><span class="module-goal">Goal: Club % 80%</span>{% elif module.type == 'gift-card-bonus' %}<br><span class="module-goal">Goal: GC% 18%</span>{% endif %}</h2>
+      <h2>{{ module.title }}{% if module.type == 'bonus-club' %}<br><span class="module-goal">Goal: Club % {{ module.goal }}%</span>{% elif module.type == 'gift-card-bonus' %}<br><span class="module-goal">Goal: GC% {{ module.goal }}%</span>{% endif %}</h2>
       {% if module.type == 'notes' %}
         <div class="note">{{ module.text|safe|default:"No notes added." }}</div>
       {% elif module.type == 'bonus-gift-combined' %}

@@ -120,8 +120,8 @@ def test_templates_settings_can_create_save_load_and_delete_template() -> None:
     assert "tbody tr.report-week-row-latest" in pdf_template
     assert "tbody tr.report-ranking-row-latest" in pdf_template
     assert "td.review-best-performance" in pdf_template
-    assert "Goal: Club % 80%" in pdf_template
-    assert "Goal: GC% 18%" in pdf_template
+    assert "Goal: Club % {{ module.goal }}%" in pdf_template
+    assert "Goal: GC% {{ module.goal }}%" in pdf_template
     assert "Fiscal Year {{ module.latest_year }}, Week {{ module.latest_week }}" not in pdf_template
     assert "class=\"sign-off-page\"" in pdf_template
     assert pdf_template.count('class="sign-off-line"') == 4

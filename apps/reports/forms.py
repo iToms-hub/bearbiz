@@ -1,9 +1,37 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from django import forms
 from django.core.exceptions import ValidationError
 
-from .models import ReportUpload
+from .models import ReportGoalSettings, ReportUpload
+
+
+class ReportGoalForm(forms.Form):
+    goal = forms.DecimalField(
+        label="Goal %",
+        min_value=Decimal("0"),
+        max_value=Decimal("100"),
+        max_digits=5,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"min": "0", "max": "100", "step": "0.01"}),
+    )
+
+    def __init__(self, *args, report_type: str, instance: ReportGoalSettings | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.report_type = report_type
+        self.instance = instance or ReportGoalSettings.current()
+        field_name = self._field_name()
+        self.initial["goal"] = getattr(self.instance, field_name)
+
+    def _field_name(self) -> str:
+        return "gift_card_goal" if self.report_type == "gift_cards" else "bonus_club_goal"
+
+    def save(self) -> ReportGoalSettings:
+        setattr(self.instance, self._field_name(), self.cleaned_data["goal"])
+        self.instance.save()
+        return self.instance
 
 
 class MissedOpportunityUploadForm(forms.Form):

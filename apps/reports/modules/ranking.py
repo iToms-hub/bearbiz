@@ -17,7 +17,7 @@ class RankingReport:
     _TARGET_STORE = "214"
     _STORE_ROW_RE = re.compile(r"^(?P<store_number>\d{3})\s+(?P<rest>.+)$")
     _FOOTER_RE = re.compile(
-        r"FW:\s*Week ending\s*'(?P<fy>\d{2})\s*FW(?P<week>\d{2}).*?week ending\s*(?P<date>\d{1,2}/\d{1,2}/\d{4})",
+        r"FW:\s*Week ending\s*['’]?(?P<fy>\d{2})\s*FW\s*(?P<week>\d{1,2}).*?week ending\s*(?P<date>\d{1,2}/\d{1,2}/\d{4})",
         re.IGNORECASE,
     )
 
@@ -92,10 +92,10 @@ class RankingReport:
         )
 
     def _extract_period(self, lines: list[str]) -> tuple[int | None, int | None, date | None]:
-        for line in lines:
-            match = self._FOOTER_RE.search(line)
-            if not match:
-                continue
+        # PDF extraction may split the footer between several text lines.
+        footer_text = " ".join(lines)
+        match = self._FOOTER_RE.search(footer_text)
+        if match:
             fiscal_year = 2000 + int(match.group("fy"))
             fiscal_week = int(match.group("week"))
             period_end = self._parse_date(match.group("date"))

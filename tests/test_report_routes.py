@@ -12,9 +12,8 @@ import pytest
 
 
 from apps.core.ai import AIAnalysisResult
-from apps.core.models import AIIntegrationSettings
-from apps.core.models import FiscalYearSettings
-from apps.reports.models import BonusClubSummary, GiftCardsSummary, RankingSummary, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from apps.core.models import AIIntegrationSettings, FiscalYearSettings, ReviewTemplate
+from apps.reports.models import BonusClubSummary, GiftCardsSummary, RankingSummary, ReportGoalSettings, ReportUpload, SegmentsSummary, WeeklySalesSummary
 
 
 @pytest.fixture()
@@ -86,7 +85,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert 'class="upload-file-row"' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.2.4' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.3.0' in history_html
         assert "Uploaded reports" in history_html
         assert "Settings" in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
@@ -170,6 +169,64 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert "Week window" not in dashboard_html
         assert "Recent uploads" not in dashboard_html
         assert "week-1-sales.pdf" not in dashboard_html
+
+
+@pytest.mark.django_db()
+def test_gift_cards_upload_returns_to_gift_cards_report(client: Client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    monkeypatch.setattr("apps.reports.views._parse_and_store_summary", lambda upload: None)
+
+    upload = SimpleUploadedFile("gift-cards.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf")
+    with override_settings(MEDIA_ROOT=media_root):
+        response = client.post(
+            reverse("reports:history-number", kwargs={"number": 4}),
+            data={"source_file": upload},
+        )
+
+    assert response.status_code == 302
+    assert response["Location"] == reverse("reports:report-number", kwargs={"number": 4})
+
+    report_response = client.get(response["Location"])
+    assert report_response.status_code == 200
+    assert "Associate gift card bonus performance" in report_response.content.decode()
+
+
+@pytest.mark.django_db()
+def test_report_goals_save_and_render_in_review_and_pdf(client: Client) -> None:
+    gift_page = client.get(reverse("reports:report-number", kwargs={"number": 4}))
+    assert gift_page.status_code == 200
+    assert ">Goal</label>" in gift_page.content.decode()
+    assert 'value="18.00"' in gift_page.content.decode()
+
+    gift_save = client.post(reverse("reports:report-number", kwargs={"number": 4}), {"action": "save-goal", "goal": "22.5"})
+    assert gift_save.status_code == 302
+    assert gift_save["Location"] == reverse("reports:report-number", kwargs={"number": 4})
+
+    bonus_save = client.post(reverse("reports:report-number", kwargs={"number": 5}), {"action": "save-goal", "goal": "77"})
+    assert bonus_save.status_code == 302
+    goals = ReportGoalSettings.objects.get()
+    assert str(goals.gift_card_goal) == "22.50"
+    assert str(goals.bonus_club_goal) == "77.00"
+
+    template = ReviewTemplate.objects.create(
+        name="Goals review",
+        layout=[
+            {"type": "bonus-club", "title": "Bonus Club"},
+            {"type": "gift-card-bonus", "title": "Gift Card Bonus"},
+        ],
+    )
+    review = client.get(reverse("dashboard-review"), {"template": template.pk})
+    review_html = review.content.decode()
+    assert "Goal: Club % 77%" in review_html
+    assert "Goal: GC% 22.5%" in review_html
+
+    pdf = client.get(reverse("dashboard-review-pdf"), {"template": template.pk})
+    assert pdf.status_code == 200
+    fitz = pytest.importorskip("fitz")
+    pdf_text = "\n".join(page.get_text() for page in fitz.open(stream=pdf.content, filetype="pdf"))
+    assert "Goal: Club % 77%" in pdf_text
+    assert "Goal: GC% 22.5%" in pdf_text
 
 
 @pytest.mark.django_db()
@@ -1308,7 +1365,7 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         assert 'Select a PDF' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.2.4' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.3.0' in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
         assert 'aria-label="Section tabs"' not in history_html
 
