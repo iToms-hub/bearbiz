@@ -257,6 +257,7 @@ import sys
 import tarfile
 
 archive, staging = sys.argv[1:]
+staging = os.path.abspath(staging)
 seen = set()
 root_name = None
 with tarfile.open(archive, "r:gz") as tar:

@@ -423,12 +423,12 @@ def test_full_restore_creates_missing_media_root_parent(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_docker(bin_dir / "docker")
-    media = tmp_path / "missing" / "nested" / "media"
+    relative_media = Path("missing") / "nested" / "media"
     backup_root = tmp_path / "backups"
     env = {
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "BACKUP_ROOT": str(backup_root),
-        "MEDIA_ROOT": str(media),
+        "MEDIA_ROOT": str(relative_media),
         "COMPOSE_FILE": str(tmp_path / "compose.yml"),
     }
 
@@ -440,7 +440,7 @@ def test_full_restore_creates_missing_media_root_parent(tmp_path: Path) -> None:
     restored = run_tool("restore", backup.stdout.strip(), "--full", "--yes", env=env, cwd=tmp_path)
 
     assert restored.returncode == 0, restored.stderr
-    assert media.is_dir()
+    assert (tmp_path / relative_media).is_dir()
 
 
 def test_full_restore_rejects_symlink_media_archive_without_touching_destination(tmp_path: Path) -> None:
