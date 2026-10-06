@@ -119,8 +119,14 @@ def product_lookup(query: str) -> dict[str, object] | None:
     }
 
 
-def product_dashboard_summary() -> dict[str, object] | None:
-    report = ProductReport.objects.filter(parse_status="parsed").order_by("-fiscal_year", "-fiscal_week").first()
+def product_dashboard_summary(target_period: dict[str, object] | None = None) -> dict[str, object] | None:
+    reports = ProductReport.objects.filter(parse_status="parsed")
+    if target_period:
+        reports = reports.filter(
+            fiscal_year=int(target_period["fiscal_year"]),
+            fiscal_week=int(target_period["fiscal_week"]),
+        )
+    report = reports.order_by("-fiscal_year", "-fiscal_week").first()
     if report is None:
         return None
     items = list(report.items.all())

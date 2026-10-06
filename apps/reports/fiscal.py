@@ -66,10 +66,10 @@ def _fiscal_year_start_for_week_end(week_end: date, config: FiscalCalendarConfig
     if (config.start_month, config.start_day) == (1, 1):
         return week_end.year, candidate_start
     if week_end >= candidate_start:
-        fiscal_year = week_end.year + 1
+        fiscal_year = week_end.year
         start = candidate_start
     else:
-        fiscal_year = week_end.year
+        fiscal_year = week_end.year - 1
         start = _month_day_for_year(week_end.year - 1, config.start_month, config.start_day)
     return fiscal_year, start
 
@@ -87,9 +87,9 @@ def calculate_fiscal_week(
 ) -> FiscalWeek:
     """Calculate fiscal year details for a report date range.
 
-    The week ending date is the normalized period end. Fiscal year names follow
-    the convention used by retail calendars: the fiscal year is the year in
-    which the fiscal period ends.
+    The week ending date is the normalized period end. Fiscal year names use
+    the configured start-year convention: a fiscal year beginning in 2026 is
+    labeled FY2026.
     """
 
     config = config or FiscalCalendarConfig()

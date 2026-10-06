@@ -13,7 +13,7 @@ Create a Portainer stack from the public repository:
 - Compose path: `compose.portainer.yml`
 - Repository authentication: off; TLS verification: on
 
-The stack uses the verified release image `ghcr.io/itoms-hub/bearbiz:1.4.0`.
+The stack uses the verified release image `ghcr.io/itoms-hub/bearbiz:1.5.0`.
 It uses explicit Docker volumes named
 `bearbiz_postgres`, `bearbiz_media`, and `bearbiz_backups`, exposes `8002:8000`,
 waits for the PostgreSQL healthcheck, runs migrations before Gunicorn, and
@@ -37,6 +37,18 @@ Optional overrides are `DEBUG=0`, `POSTGRES_DB=bearbiz`,
 `POSTGRES_USER=bearbiz`, `BACKUP_OWNER_UID=1000`, `BACKUP_OWNER_GID=1000`,
 and `GUNICORN_WORKERS=3`.
 
+## Access boundary
+
+Bearbiz does not provide application-level user authentication for the
+settings or backup routes. `POST` actions are protected by Django CSRF, but
+CSRF is not authorization. The existing security boundary is the deployment:
+keep the published app port private or place it behind an authenticated,
+TLS-terminating reverse proxy/VPN, and do not expose it directly to an
+untrusted network. This applies especially to backup download, upload,
+restore, and delete actions, which can disclose or modify the database and
+media. Adding a broad Django auth policy would change the deployment contract
+and is intentionally not part of this release.
+
 `POSTGRES_HOST=db`, `POSTGRES_PORT=5432`, and the container backup paths are
 set by the compose file. `CSRF_TRUSTED_ORIGINS` must contain explicit full
 origins (including `https://`), not bare hostnames. Keep secrets and registry
@@ -51,7 +63,7 @@ credentials using a read-only package token; never put the token in Compose or
 `stack.env` committed to Git.
 
 The checked-in workflow publishes with `GITHUB_TOKEN` and no application
-secrets. Pushes to `main` publish `latest` and an immutable SHA tag. Version tags such as `v1.4.0` publish `1.4.0`, `1.3`, `1`, and a SHA tag. The compose
+secrets. Pushes to `main` publish `latest` and an immutable SHA tag. Version tags such as `v1.5.0` publish `1.5.0`, `1.3`, `1`, and a SHA tag. The compose
 file pins the verified release tag. Never use `down -v` during an update.
 
 The stack's `bearbiz_backups` volume is local to the deployment host and is not

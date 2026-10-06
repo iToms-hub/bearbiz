@@ -101,12 +101,25 @@ postgres_verify() {
   fi
 }
 
-postgres_restore() {
+postgres_reset_schema() {
+  local schema_reset_sql='DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;'
   if [[ "$BACKUP_EXECUTION_MODE" == direct ]]; then
     PGHOST=${PGHOST:-$DB_SERVICE} PGPORT=${PGPORT:-5432} PGUSER=${PGUSER:-$DB_USER} \
-      PGDATABASE=${PGDATABASE:-$DB_NAME} pg_restore --clean --if-exists --no-owner
+      PGDATABASE=${PGDATABASE:-$DB_NAME} psql --no-psqlrc --set=ON_ERROR_STOP=1 --dbname="${PGDATABASE:-$DB_NAME}" \
+      --command="$schema_reset_sql"
   else
-    compose exec -T "$DB_SERVICE" sh -c 'cat > /tmp/bearbiz-restore.dump && pg_restore --clean --if-exists --no-owner --dbname="$1" -U "$2" /tmp/bearbiz-restore.dump; status=$?; rm -f /tmp/bearbiz-restore.dump; exit "$status"' sh "$DB_NAME" "$DB_USER"
+    compose exec -T "$DB_SERVICE" psql --no-psqlrc --set=ON_ERROR_STOP=1 --dbname="$DB_NAME" -U "$DB_USER" \
+      --command="$schema_reset_sql"
+  fi
+}
+
+postgres_restore() {
+  postgres_reset_schema
+  if [[ "$BACKUP_EXECUTION_MODE" == direct ]]; then
+    PGHOST=${PGHOST:-$DB_SERVICE} PGPORT=${PGPORT:-5432} PGUSER=${PGUSER:-$DB_USER} \
+      PGDATABASE=${PGDATABASE:-$DB_NAME} pg_restore --no-owner --exit-on-error --dbname="${PGDATABASE:-$DB_NAME}"
+  else
+    compose exec -T "$DB_SERVICE" sh -c 'cat > /tmp/bearbiz-restore.dump && pg_restore --no-owner --exit-on-error --dbname="$1" -U "$2" /tmp/bearbiz-restore.dump; status=$?; rm -f /tmp/bearbiz-restore.dump; exit "$status"' sh "$DB_NAME" "$DB_USER"
   fi
 }
 
@@ -232,8 +245,122 @@ prune_sets() {
   done < <(list_ids)
 }
 
+safe_extract_media() {
+  local archive=$1 destination=$2 staging parent backup_dir='' backup_path status
+  require_command python3
+  parent=$(dirname "$destination")
+  mkdir -p -- "$parent"
+  staging=$(mktemp -d "$parent/.media-restore.XXXXXX")
+  if python3 - "$archive" "$staging" <<'PY'
+import os
+import sys
+import tarfile
+
+archive, staging = sys.argv[1:]
+seen = set()
+root_name = None
+with tarfile.open(archive, "r:gz") as tar:
+    for member in tar.getmembers():
+        parts = member.name.split("/")
+        if member.name in (".", "./"):
+            continue
+        if member.name.startswith("/") or ".." in parts or not parts[0]:
+            raise ValueError(f"unsafe archive member: {member.name!r}")
+        if root_name is None:
+            root_name = parts[0]
+        elif parts[0] != root_name:
+            raise ValueError(f"ambiguous archive roots: {member.name!r}")
+        if member.issym() or member.islnk() or not (member.isdir() or member.isfile()):
+            raise ValueError(f"unsupported archive member type: {member.name!r}")
+        relative = "/".join(parts[1:])
+        if not relative:
+            if not member.isdir():
+                raise ValueError(f"archive root must be a directory: {member.name!r}")
+            continue
+        if relative in seen:
+            raise ValueError(f"duplicate archive member: {member.name!r}")
+        seen.add(relative)
+        target = os.path.abspath(os.path.join(staging, *relative.split("/")))
+        if os.path.commonpath((staging, target)) != os.path.abspath(staging):
+            raise ValueError(f"archive member escapes staging: {member.name!r}")
+        if member.isdir():
+            os.makedirs(target, exist_ok=True)
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        source = tar.extractfile(member)
+        if source is None:
+            raise ValueError(f"cannot read archive member: {member.name!r}")
+        with open(target, "xb") as output:
+            while chunk := source.read(1024 * 1024):
+                output.write(chunk)
+PY
+  then
+    :
+  else
+    status=$?
+    rm -rf -- "$staging" || log "ERROR: failed to clean media staging directory: $staging"
+    return "$status"
+  fi
+
+  if [[ -e "$destination" || -L "$destination" ]]; then
+    if backup_dir=$(mktemp -d "$parent/.media-restore-backup.XXXXXX"); then
+      backup_path="$backup_dir/original"
+    else
+      status=$?
+      rm -rf -- "$staging" || log "ERROR: failed to clean media staging directory: $staging"
+      return "$status"
+    fi
+    if mv -- "$destination" "$backup_path"; then
+      :
+    else
+      status=$?
+      rm -rf -- "$backup_dir" || log "ERROR: failed to clean media backup directory: $backup_dir"
+      rm -rf -- "$staging" || log "ERROR: failed to clean media staging directory: $staging"
+      return "$status"
+    fi
+  fi
+
+  if mv -- "$staging" "$destination"; then
+    if [[ -n "$backup_dir" ]]; then
+      if rm -rf -- "$backup_dir"; then
+        :
+      else
+        status=$?
+        log "ERROR: media restore succeeded but failed to clean backup directory: $backup_dir"
+        return "$status"
+      fi
+    fi
+    return 0
+  else
+    status=$?
+  fi
+  if [[ -n "$backup_dir" ]]; then
+    if mv -- "$backup_path" "$destination"; then
+      rm -rf -- "$backup_dir" || log "ERROR: failed to clean media backup directory: $backup_dir"
+    else
+      log "ERROR: media replacement failed and original media could not be restored from: $backup_path"
+    fi
+  fi
+  rm -rf -- "$staging" || log "ERROR: failed to clean media staging directory: $staging"
+  return "$status"
+}
+
+restore_database_with_rollback() {
+  local target_dump=$1 safety_dump=$2 status
+  if postgres_restore < "$target_dump"; then
+    return 0
+  else
+    status=$?
+  fi
+  log "database restore failed; restoring safety backup"
+  if ! postgres_restore < "$safety_dump"; then
+    log 'ERROR: safety database restore also failed'
+  fi
+  return "$status"
+}
+
 restore_set() {
-  local id=$1 mode=full yes=0 dry_run=0 dir dump archive arg
+  local id=$1 mode=full yes=0 dry_run=0 dir dump archive arg safety_id safety_dir status
   shift
   backup_id_valid "$id" || fatal "invalid backup identifier: $id"
   while (($#)); do
@@ -254,18 +381,32 @@ restore_set() {
   if ((dry_run)); then log "dry-run: would create a current-state safety backup, then restore $id ($mode)"; return 0; fi
   ((yes)) || fatal 'restore changes live data; re-run with --yes after reviewing the backup identifier'
   log "creating current-state safety backup before restore"
-  create_backup
+  safety_id=$(create_backup)
+  safety_dir=$(backup_dir "$safety_id")
+  [[ -f "$safety_dir/database.dump" ]] || fatal "safety backup has no database dump: $safety_id"
   log "restoring PostgreSQL database"
   if [[ "$BACKUP_EXECUTION_MODE" == direct ]]; then
+    require_command psql
     require_command pg_restore
   else
     require_command docker
   fi
-  postgres_restore < "$dir/database.dump"
+  if restore_database_with_rollback "$dir/database.dump" "$safety_dir/database.dump"; then
+    :
+  else
+    status=$?
+    return "$status"
+  fi
   if [[ "$mode" == full ]]; then
     log "restoring media directory"
-    mkdir -p "$MEDIA_ROOT"
-    tar -xzf "$dir/media.tar.gz" --strip-components=1 -C "$MEDIA_ROOT"
+    if safe_extract_media "$dir/media.tar.gz" "$MEDIA_ROOT"; then
+      :
+    else
+      status=$?
+      log "media restore failed; restoring safety database"
+      postgres_restore < "$safety_dir/database.dump" || log 'ERROR: safety database restore also failed'
+      return "$status"
+    fi
   fi
   log "restore complete: $id ($mode)"
 }

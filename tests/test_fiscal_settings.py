@@ -16,8 +16,8 @@ from apps.reports.modules.weekly_sales import WeeklySalesReport
 def test_fiscal_year_start_date_drives_week_calculation() -> None:
     settings = FiscalYearSettings.objects.create(fiscal_year_start_date=date(2025, 2, 2))
 
-    assert settings.fiscal_year_for_date(date(2025, 2, 1)) == 2025
-    assert settings.fiscal_year_for_date(date(2025, 2, 2)) == 2026
+    assert settings.fiscal_year_for_date(date(2025, 2, 1)) == 2024
+    assert settings.fiscal_year_for_date(date(2025, 2, 2)) == 2025
     assert settings.fiscal_week_for_date(date(2025, 2, 2)) == 1
 
 
@@ -35,7 +35,7 @@ Orders    410
     )
 
     assert report.payload["fiscal"]["fiscal_week_number"] == 1
-    assert report.payload["fiscal"]["fiscal_year"] == 2027
+    assert report.payload["fiscal"]["fiscal_year"] == 2026
 
 
 @pytest.mark.django_db
@@ -59,3 +59,23 @@ def test_admin_form_exposes_fiscal_year_start_date_only() -> None:
 
     assert form.is_valid(), form.errors
     assert list(form.fields) == ["fiscal_year_start_date"]
+
+
+@pytest.mark.django_db
+def test_fiscal_year_settings_rederives_multiple_historical_anniversaries() -> None:
+    settings = FiscalYearSettings.objects.create(fiscal_year_start_date=date(2025, 2, 2))
+
+    assert settings.fiscal_year_for_date(date(2023, 2, 1)) == 2022
+    assert settings.fiscal_week_for_date(date(2023, 2, 1)) == 53
+    assert settings.fiscal_year_for_date(date(2027, 2, 3)) == 2027
+    assert settings.fiscal_week_for_date(date(2027, 2, 3)) == 1
+
+
+@pytest.mark.django_db
+def test_fiscal_year_settings_handles_february_29_anniversary() -> None:
+    settings = FiscalYearSettings.objects.create(fiscal_year_start_date=date(2024, 2, 29))
+
+    assert settings.fiscal_year_for_date(date(2023, 2, 28)) == 2023
+    assert settings.fiscal_week_for_date(date(2023, 2, 28)) == 1
+    assert settings.fiscal_year_for_date(date(2024, 2, 29)) == 2024
+    assert settings.fiscal_week_for_date(date(2024, 3, 6)) == 1

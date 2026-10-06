@@ -8,6 +8,10 @@ from django.db import models
 from .fiscal import boundary_date, fiscal_week_for_day, fiscal_year_for_day
 
 
+def _is_leap_year(year: int) -> bool:
+    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+
 class CalendarPattern(models.TextChoices):
     FOUR_FIVE_FOUR = "454", "4-5-4"
     FOUR_FOUR_FIVE = "445", "4-4-5"
@@ -114,18 +118,38 @@ class FiscalYearSettings(models.Model):
             rule=self.boundary_rule,
         )
 
+    def fiscal_year_start_for_year(self, fiscal_year: int) -> date:
+        """Return the configured anniversary start for a fiscal-year label."""
+        start = getattr(self, "fiscal_year_start_date", None)
+        if start is None:
+            return self.fiscal_year_end(fiscal_year - 1) + timedelta(days=1)
+        if start.month == 2 and start.day == 29:
+            return date(fiscal_year, 2, 29 if _is_leap_year(fiscal_year) else 28)
+        return date(fiscal_year, start.month, start.day)
+
     def _start_and_week_for_date(self, day: date) -> tuple[int, int]:
         start = getattr(self, "fiscal_year_start_date", None)
         if start is None:
             raise ValueError("fiscal_year_start_date is not set")
 
-        start = date(start.year, start.month, start.day)
-        fiscal_year = start.year + 1
-        if day < start:
-            fiscal_year = start.year
-            start = start - timedelta(weeks=52)
+        configured_start = date(start.year, start.month, start.day)
+        # Re-derive the anniversary in the requested date's calendar year. A
+        # single 52-week subtraction is wrong across 53-week fiscal years.
+        if configured_start.month == 2 and configured_start.day == 29:
+            anniversary = date(day.year, 2, 29 if _is_leap_year(day.year) else 28)
+        else:
+            anniversary = configured_start.replace(year=day.year)
+        if day >= anniversary:
+            fiscal_year = day.year
+            fiscal_start = anniversary
+        else:
+            fiscal_year = day.year - 1
+            if configured_start.month == 2 and configured_start.day == 29:
+                fiscal_start = date(day.year - 1, 2, 29 if _is_leap_year(day.year - 1) else 28)
+            else:
+                fiscal_start = configured_start.replace(year=day.year - 1)
 
-        week_number = ((day - start).days // 7) + 1
+        week_number = ((day - fiscal_start).days // 7) + 1
         if week_number < 1:
             week_number = 1
         return fiscal_year, week_number
@@ -145,6 +169,17 @@ class ReviewTemplate(models.Model):
 
     def __str__(self) -> str:
         return str(self.name)
+
+
+class BackupConfirmationToken(models.Model):
+    """Hashes of backup confirmation tokens already consumed."""
+
+    token_hash = models.CharField(max_length=64, unique=True)
+    purpose = models.CharField(max_length=32)
+    consumed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("purpose", "consumed_at"))]
 
 
 class AIIntegrationSettings(models.Model):

@@ -74,6 +74,7 @@ Orders    410
     assert report.payload["fiscal"] is not None
 
 
+@pytest.mark.django_db
 def test_ranking_parser_extracts_target_store_rankings() -> None:
     report = RankingReport().parse(
         """FW: Week ending '26 FW01 (run for week ending 02/07/2026)

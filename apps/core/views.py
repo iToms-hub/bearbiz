@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from html import escape
 from html.parser import HTMLParser
 import os
 import re
+import secrets
 import fcntl
 import shutil
 import subprocess
@@ -14,6 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from django.conf import settings as django_settings
+from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+from django.db import IntegrityError, transaction
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -21,8 +25,14 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .ai import fetch_available_model_names as fetch_ai_model_suggestions, probe_ai_endpoint
 from .forms import AIIntegrationSettingsForm, FiscalYearSettingsForm
-from .models import AIIntegrationSettings, FiscalYearSettings, ReviewTemplate
+from .models import AIIntegrationSettings, BackupConfirmationToken, FiscalYearSettings, ReviewTemplate
 from .navigation import settings_tabs, shell_context
+
+
+RESTORE_CONFIRMATION_MAX_AGE = 5 * 60
+DELETE_CONFIRMATION_MAX_AGE = 5 * 60
+_restore_confirmation_signer = TimestampSigner(salt="bearbiz-backup-restore-confirmation")
+_delete_confirmation_signer = TimestampSigner(salt="bearbiz-backup-delete-confirmation")
 
 
 class _RichTextSanitizer(HTMLParser):
@@ -291,6 +301,13 @@ def backup_action(request: HttpRequest) -> HttpResponse:
         return _backup_page(request)
     if action == "restore-confirm":
         return _restore_confirm(request)
+    if action == "delete-select":
+        return _delete_selection(request)
+    if action == "delete-cancel":
+        request.session.pop("backup_delete", None)
+        return _backup_page(request)
+    if action == "delete-confirm":
+        return _delete_confirm(request)
     if action not in {"run", "verify"}:
         raise Http404("Unknown backup action.")
     args = ["backup"] if action == "run" else ["verify"]
@@ -370,7 +387,10 @@ def _backup_upload(request: HttpRequest) -> HttpResponse:
             shutil.rmtree(destination, ignore_errors=True)
             return _backup_page(request, "The uploaded backup failed verification and was discarded.", False)
         request.session["backup_restore"] = {"id": backup_id, "mode": "full"}
-        return _backup_page(request, f"Backup {backup_id} uploaded and verified. Confirm the full restore below.", True)
+        return _backup_page(
+            request, f"Backup {backup_id} uploaded and verified. Confirm the full restore below.", True,
+            restore_token=_issue_restore_confirmation_token(backup_id, "full"),
+        )
     except (OSError, ValueError, zipfile.BadZipFile, zipfile.LargeZipFile, subprocess.SubprocessError) as exc:
         return _backup_page(request, f"Backup upload failed safely: {exc}", False)
     finally:
@@ -386,19 +406,23 @@ def _restore_selection(request: HttpRequest) -> HttpResponse:
     if _restore_record(backup_id, mode) is None:
         return _backup_page(request, "That restore point is unavailable, incomplete, or not verified.", False)
     request.session["backup_restore"] = {"id": backup_id, "mode": mode}
-    return _backup_page(request)
+    return _backup_page(request, restore_token=_issue_restore_confirmation_token(backup_id, mode))
 
 
 def _restore_confirm(request: HttpRequest) -> HttpResponse:
-    pending = request.session.pop("backup_restore", None)
+    token = request.POST.get("restore_token", "")
     backup_id = request.POST.get("backup_id", "")
     mode = request.POST.get("restore_mode", "")
-    if not isinstance(pending, dict) or pending.get("id") != backup_id or pending.get("mode") != mode:
+    token_payload = _decode_restore_confirmation_token(token)
+    if not isinstance(token_payload, dict) or token_payload.get("id") != backup_id or token_payload.get("mode") != mode:
         return _backup_page(request, "Restore confirmation expired or did not match the selected backup.", False)
     if _backup_in_progress():
         return _backup_page(request, "A backup or restore is already running. Try again when it finishes.", False)
     if _restore_record(backup_id, mode) is None:
         return _backup_page(request, "That restore point is unavailable, incomplete, or not verified.", False)
+    if not _consume_restore_confirmation_token(token):
+        return _backup_page(request, "Restore confirmation expired or did not match the selected backup.", False)
+    request.session.pop("backup_restore", None)
     args = ["restore", backup_id, "--db-only" if mode == "db-only" else "--full", "--yes"]
     try:
         result = subprocess.run(
@@ -408,22 +432,121 @@ def _restore_confirm(request: HttpRequest) -> HttpResponse:
     except (OSError, subprocess.TimeoutExpired) as exc:
         return _backup_page(request, f"Restore failed safely: {exc}", False)
     if result.returncode:
-        lines = (result.stderr or result.stdout).strip().splitlines()
-        detail = lines[-1] if lines else "unknown error"
+        detail = (result.stderr or result.stdout).strip() or "unknown error"
         return _backup_page(request, f"Restore failed safely: {detail}", False)
     return _backup_page(request, f"Restore completed for {backup_id} ({mode}).", True)
 
 
-def _backup_page(request: HttpRequest, message: str = "", ok: bool = False) -> HttpResponse:
+def _delete_selection(request: HttpRequest) -> HttpResponse:
+    backup_id = str(request.POST.get("backup_id") or "")
+    if _backup_in_progress():
+        return _backup_page(request, "A backup or restore is already running. Try again when it finishes.", False)
+    if not _backup_directory(backup_id):
+        return _backup_page(request, "That backup set is unavailable or has an invalid identifier.", False)
+    request.session["backup_delete"] = {"id": backup_id}
+    return _backup_page(request, delete_token=_issue_delete_confirmation_token(backup_id))
+
+
+def _delete_confirm(request: HttpRequest) -> HttpResponse:
+    token = str(request.POST.get("delete_token") or "")
+    backup_id = str(request.POST.get("backup_id") or "")
+    payload = _decode_delete_confirmation_token(token)
+    if not isinstance(payload, dict) or payload.get("id") != backup_id:
+        return _backup_page(request, "Delete confirmation expired or did not match the selected backup.", False)
+    if _backup_in_progress():
+        return _backup_page(request, "A backup or restore is already running. Try again when it finishes.", False)
+    directory = _backup_directory(backup_id)
+    if directory is None:
+        return _backup_page(request, "That backup set is unavailable or has an invalid identifier.", False)
+    if not _consume_delete_confirmation_token(token):
+        return _backup_page(request, "Delete confirmation expired or did not match the selected backup.", False)
+    try:
+        shutil.rmtree(directory)
+    except OSError as exc:
+        return _backup_page(request, f"Backup deletion failed safely: {exc}", False)
+    request.session.pop("backup_delete", None)
+    return _backup_page(request, f"Backup {backup_id} deleted.", True)
+
+
+def _backup_directory(backup_id: str) -> Path | None:
+    if not _backup_id(backup_id):
+        return None
+    root = Path(os.environ.get("BACKUP_ROOT", str(Path.home() / "backups" / "bearbiz"))).resolve()
+    directory = (root / backup_id).resolve()
+    if directory.parent != root or not directory.is_dir():
+        return None
+    return directory
+
+
+def _issue_delete_confirmation_token(backup_id: str) -> str:
+    return _delete_confirmation_signer.sign_object({"id": backup_id, "nonce": secrets.token_urlsafe(24)})
+
+
+def _decode_delete_confirmation_token(token: str) -> dict[str, object] | None:
+    if not token:
+        return None
+    try:
+        payload = _delete_confirmation_signer.unsign_object(token, max_age=DELETE_CONFIRMATION_MAX_AGE)
+    except (BadSignature, SignatureExpired):
+        return None
+    if not isinstance(payload, dict) or not isinstance(payload.get("id"), str) or not isinstance(payload.get("nonce"), str):
+        return None
+    return payload
+
+
+def _consume_delete_confirmation_token(token: str) -> bool:
+    return _consume_confirmation_token(token, "delete")
+
+
+def _consume_confirmation_token(token: str, purpose: str) -> bool:
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    try:
+        with transaction.atomic():
+            BackupConfirmationToken.objects.create(token_hash=token_hash, purpose=purpose)
+    except IntegrityError:
+        return False
+    return True
+
+
+def _backup_page(
+    request: HttpRequest,
+    message: str = "",
+    ok: bool = False,
+    restore_token: str | None = None,
+    delete_token: str | None = None,
+) -> HttpResponse:
     pending = request.session.get("backup_restore") if hasattr(request, "session") else None
+    pending_delete = request.session.get("backup_delete") if hasattr(request, "session") else None
     confirmation = None
+    confirmation_mode = ""
+    delete_confirmation = None
+    delete_confirmation_id = ""
     if isinstance(pending, dict):
-        confirmation = _restore_record(str(pending.get("id", "")), str(pending.get("mode", "db-only")))
+        confirmation_mode = str(pending.get("mode", "db-only"))
+        confirmation = _restore_record(str(pending.get("id", "")), confirmation_mode)
+        restore_token = restore_token or _issue_restore_confirmation_token(str(pending.get("id", "")), confirmation_mode)
+    elif restore_token:
+        payload = _decode_restore_confirmation_token(restore_token)
+        if isinstance(payload, dict):
+            confirmation_mode = str(payload.get("mode", ""))
+            confirmation = _restore_record(str(payload.get("id", "")), confirmation_mode)
+    if isinstance(pending_delete, dict):
+        delete_confirmation_id = str(pending_delete.get("id", ""))
+        delete_confirmation = _backup_directory(delete_confirmation_id)
+        delete_token = delete_token or _issue_delete_confirmation_token(delete_confirmation_id)
+    elif delete_token:
+        payload = _decode_delete_confirmation_token(delete_token)
+        if isinstance(payload, dict):
+            delete_confirmation_id = str(payload.get("id", ""))
+            delete_confirmation = _backup_directory(delete_confirmation_id)
     context = shell_context(
         section="settings", page_title="Settings",
         subtitle="Manage backup health, verification, retention, and restore-point history.",
         top_tabs=settings_tabs("backup"), section_slug="backup", backup=backup_snapshot(),
         backup_message=message, backup_message_ok=ok, backup_confirmation=confirmation,
+        backup_confirmation_token=restore_token, backup_confirmation_mode=confirmation_mode,
+        backup_delete_confirmation=delete_confirmation, backup_delete_confirmation_id=delete_confirmation_id,
+        backup_delete_token=delete_token,
     )
     return render(request, "settings/page.html", context)
 
@@ -501,6 +624,27 @@ def _restore_record_from_path(path: Path, record: dict[str, object] | None, mode
     if not (path / "database.dump").is_file() or (mode == "full" and not (path / "media.tar.gz").is_file()):
         return None
     return record
+
+
+def _issue_restore_confirmation_token(backup_id: str, mode: str) -> str:
+    payload = {"id": backup_id, "mode": mode, "nonce": secrets.token_urlsafe(24)}
+    return _restore_confirmation_signer.sign_object(payload)
+
+
+def _decode_restore_confirmation_token(token: str) -> dict[str, object] | None:
+    if not token:
+        return None
+    try:
+        payload = _restore_confirmation_signer.unsign_object(token, max_age=RESTORE_CONFIRMATION_MAX_AGE)
+    except (BadSignature, SignatureExpired):
+        return None
+    if not isinstance(payload, dict) or not isinstance(payload.get("id"), str) or not isinstance(payload.get("mode"), str) or not isinstance(payload.get("nonce"), str):
+        return None
+    return payload
+
+
+def _consume_restore_confirmation_token(token: str) -> bool:
+    return _consume_confirmation_token(token, "restore")
 
 
 def _backup_in_progress() -> bool:

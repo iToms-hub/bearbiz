@@ -62,6 +62,15 @@ class RankingReport:
     def parse(self, raw_text: str) -> ParsedReport:
         lines = [line.strip() for line in raw_text.replace("\r\n", "\n").replace("\r", "\n").splitlines() if line.strip()]
         fiscal_year, fiscal_week, period_end = self._extract_period(lines)
+        if period_end is not None:
+            # The PDF's two-digit FY marker was produced with the old
+            # end-year convention.  Persist labels from Bearbiz's settings.
+            from apps.core.models import FiscalYearSettings
+
+            settings = FiscalYearSettings.current()
+            if settings.fiscal_year_start_date:
+                fiscal_year = settings.fiscal_year_for_date(period_end)
+                fiscal_week = settings.fiscal_week_for_date(period_end)
         store_rows = self._extract_store_rows(lines)
         target_store = self._build_target_store(store_rows)
         fiscal = None

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -54,7 +55,7 @@ def test_backup_history_template_right_aligns_accessible_restore_action() -> Non
     template = Path("templates/settings/page.html").read_text()
     styles = Path("templates/base.html").read_text()
 
-    assert '<tr><th>ID</th><th>Type</th><th>Timestamp</th><th>Size</th><th>Verification</th><th class="restore-actions">Restore</th></tr>' in template
+    assert '<tr><th>ID</th><th>Type</th><th>Timestamp</th><th>Size</th><th>Verification</th><th class="restore-actions">Actions</th></tr>' in template
     assert '<table class="backup-history-table"><colgroup>' in template
     assert '<col class="backup-col-timestamp"><col class="backup-col-size">' in template
     assert '<td class="restore-actions">{% if record.restore_available %}' in template
@@ -64,6 +65,8 @@ def test_backup_history_template_right_aligns_accessible_restore_action() -> Non
     assert '<option value="full">Database + media</option>' in template
     assert 'type="radio" name="restore_mode"' not in template
     assert 'class="restore-button" aria-label="Restore backup {{ record.id }}"' in template
+    assert 'value="delete-select"' in template
+    assert 'aria-label="Delete backup {{ record.id }}"' in template
     assert "gap: 0.35rem" in styles
     assert ".restore-actions { text-align: right; white-space: nowrap; }" in styles
     assert ".backup-history-table { table-layout: fixed; min-width: 68rem; }" in styles
@@ -143,6 +146,50 @@ def test_uploaded_complete_backup_is_verified_and_requires_restore_confirmation(
     assert response.status_code == 200
     assert b"Confirm restore" in response.content
     assert client.session["backup_restore"] == {"id": backup_id, "mode": "full"}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("session_state", ["missing", "stale"])
+def test_uploaded_backup_confirmation_uses_signed_handoff_when_session_is_unavailable_or_stale(
+    client, tmp_path: Path, monkeypatch, session_state: str
+) -> None:
+    backup_id = "20260908T120000Z"
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as bundle:
+        bundle.writestr("manifest.txt", f"backup_id={backup_id}\nmode=full\n")
+        bundle.writestr("database.dump", b"database")
+        bundle.writestr("media.tar.gz", b"media")
+        bundle.writestr("SHA256SUMS", b"checksums")
+    record = {"id": backup_id, "timestamp": "2026-09-08T12:00:00Z", "verified": "verified", "size_display": "1 KB", "full_restore_available": True}
+    monkeypatch.setenv("BACKUP_ROOT", str(tmp_path / "backups"))
+    monkeypatch.setattr(views, "_verification_state", lambda path: "verified")
+    monkeypatch.setattr(views, "backup_snapshot", lambda: {"records": [record], "latest": record, "latest_full": record, "count": 1, "storage_path": "/backups", "schedule": "manual", "retention": "7", "last_attempted": "None", "last_failed": "None", "failure_reason": "", "status": "healthy", "status_message": "A verified backup is available."})
+    monkeypatch.setattr(views, "_restore_record", lambda selected_id, mode: record if selected_id == backup_id and mode == "full" else None)
+    from subprocess import CompletedProcess
+    calls = []
+    monkeypatch.setattr(views.subprocess, "run", lambda command, **kwargs: (calls.append(command) or CompletedProcess(command, 0, stdout="", stderr="")))
+
+    upload = client.post(reverse("settings:backup-action"), {
+        "action": "upload",
+        "backup_zip": SimpleUploadedFile("bearbiz.zip", payload.getvalue(), content_type="application/zip"),
+    })
+    html = upload.content.decode()
+    token_match = re.search(r'name="restore_token" value="([^"]+)"', html)
+    assert token_match
+    token = token_match.group(1)
+    session = client.session
+    if session_state == "missing":
+        session.pop("backup_restore", None)
+    else:
+        session["backup_restore"] = {"id": "20260907T120000Z", "mode": "db-only"}
+    session.save()
+
+    response = client.post(reverse("settings:backup-action"), {
+        "action": "restore-confirm", "backup_id": backup_id, "restore_mode": "full", "restore_token": token,
+    })
+
+    assert b"Restore completed" in response.content
+    assert len(calls) == 2
 
 
 @pytest.mark.django_db
@@ -246,11 +293,81 @@ def test_restore_confirmation_executes_once_after_selection(client, monkeypatch)
 
     monkeypatch.setattr(views.subprocess, "run", fake_run)
     payload = {"backup_id": record["id"], "restore_mode": "db-only"}
-    client.post(reverse("settings:backup-action"), {"action": "restore-select", **payload})
-    response = client.post(reverse("settings:backup-action"), {"action": "restore-confirm", **payload})
-    duplicate = client.post(reverse("settings:backup-action"), {"action": "restore-confirm", **payload})
+    selection = client.post(reverse("settings:backup-action"), {"action": "restore-select", **payload})
+    token_match = re.search(r'name="restore_token" value="([^"]+)"', selection.content.decode())
+    assert token_match
+    response = client.post(reverse("settings:backup-action"), {"action": "restore-confirm", **payload, "restore_token": token_match.group(1)})
+    duplicate = client.post(reverse("settings:backup-action"), {"action": "restore-confirm", **payload, "restore_token": token_match.group(1)})
 
     assert response.status_code == 200
     assert b"Restore completed" in response.content
     assert b"confirmation expired" in duplicate.content
     assert len(calls) == 1
+
+
+@pytest.mark.django_db
+def test_restore_failure_surfaces_all_actionable_stderr(client, monkeypatch) -> None:
+    record = {"id": "20260908T120000Z", "timestamp": "2026-09-08T12:00:00Z", "verified": "verified", "size_display": "1 KB"}
+    monkeypatch.setattr(views, "_restore_record", lambda backup_id, mode: record)
+    monkeypatch.setattr(views, "_backup_in_progress", lambda: False)
+    monkeypatch.setattr(views.subprocess, "run", lambda command, **kwargs: CompletedProcess(
+        command, 1, stdout="", stderr="pg_restore: error: relation \"facts\" does not exist\npg_restore: warning: errors ignored on restore: 12\n"
+    ))
+    selection = client.post(reverse("settings:backup-action"), {"action": "restore-select", "backup_id": record["id"], "restore_mode": "db-only"})
+    token = re.search(r'name="restore_token" value="([^"]+)"', selection.content.decode()).group(1)
+
+    response = client.post(reverse("settings:backup-action"), {
+        "action": "restore-confirm", "backup_id": record["id"], "restore_mode": "db-only", "restore_token": token,
+    })
+
+    body = response.content.decode()
+    assert "relation &quot;facts&quot; does not exist" in body
+    assert "errors ignored on restore: 12" in body
+
+
+@pytest.mark.django_db
+def test_delete_requires_two_steps_and_removes_only_selected_backup(client, tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "backups"
+    selected = root / "20260908T120000Z"
+    other = root / "20260908T130000Z"
+    selected.mkdir(parents=True)
+    other.mkdir(parents=True)
+    (root / "safety-backup").mkdir()
+    monkeypatch.setenv("BACKUP_ROOT", str(root))
+    monkeypatch.setattr(views, "_backup_in_progress", lambda: False)
+
+    selection = client.post(reverse("settings:backup-action"), {"action": "delete-select", "backup_id": selected.name})
+    assert selection.status_code == 200
+    assert selected.exists()
+    token = re.search(r'name="delete_token" value="([^"]+)"', selection.content.decode()).group(1)
+
+    first = client.post(reverse("settings:backup-action"), {"action": "delete-confirm", "backup_id": selected.name})
+    assert b"Delete confirmation expired" in first.content
+    assert selected.exists()
+
+    deleted = client.post(reverse("settings:backup-action"), {
+        "action": "delete-confirm", "backup_id": selected.name, "delete_token": token,
+    })
+    assert b"Backup 20260908T120000Z deleted" in deleted.content
+    assert not selected.exists()
+    assert other.exists()
+    assert (root / "safety-backup").exists()
+
+    duplicate = client.post(reverse("settings:backup-action"), {
+        "action": "delete-confirm", "backup_id": selected.name, "delete_token": token,
+    })
+    assert b"Delete confirmation expired" in duplicate.content or b"unavailable" in duplicate.content
+
+
+@pytest.mark.django_db
+def test_delete_refuses_while_backup_is_in_progress(client, tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "backups"
+    target = root / "20260908T120000Z"
+    target.mkdir(parents=True)
+    monkeypatch.setenv("BACKUP_ROOT", str(root))
+    monkeypatch.setattr(views, "_backup_in_progress", lambda: True)
+
+    response = client.post(reverse("settings:backup-action"), {"action": "delete-select", "backup_id": target.name})
+
+    assert b"already running" in response.content
+    assert target.exists()

@@ -16,6 +16,7 @@ from apps.reports.parties_views import HEADERS, _rows
 FIXTURE = Path("/home/tome/.hermes/kanban/boards/bearbiz/attachments/t_1a262103/week 31 parties.pdf")
 
 
+@pytest.mark.django_db
 def test_parties_parser_preserves_groups_status_and_na() -> None:
     parsed = PartiesReport().parse(
         """Party Summary - Store Report '26 FW31
@@ -51,7 +52,42 @@ def test_parties_parser_uses_source_month_markers_and_configured_fiscal_start() 
     assert [row["fiscal_month"] for row in rows] == [1, 1, 1]
 
 
+
+
+@pytest.mark.django_db
+def test_parties_parser_preserves_historical_fiscal_year_when_current_start_changes() -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+
+    parsed = PartiesReport().parse("Party Summary - Store Report '25 FW31\nACT wk1 1 1 0 1 1 0 1 1 0")
+
+    assert parsed.payload["fiscal"]["fiscal_year"] == 2025
+
+
+@pytest.mark.django_db
+def test_parties_parser_uses_period_end_to_derive_fiscal_year() -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+
+    parsed = PartiesReport().parse("Party Summary - Store Report '25 FW31 (week ending 02/07/2025)\nACT wk1 1 1 0 1 1 0 1 1 0")
+
+    assert parsed.payload["fiscal"]["fiscal_year"] == 2025
+
+
+@pytest.mark.django_db
+def test_parties_parser_propagates_fiscal_settings_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    from django.db import OperationalError
+
+    monkeypatch.setattr(
+        FiscalYearSettings,
+        "current",
+        classmethod(lambda cls: (_ for _ in ()).throw(OperationalError("settings unavailable"))),
+    )
+
+    with pytest.raises(OperationalError, match="settings unavailable"):
+        PartiesReport().parse("Party Summary - Store Report '26 FW31")
+
+
 @pytest.mark.skipif(not FIXTURE.exists(), reason="fixture unavailable")
+@pytest.mark.django_db
 def test_week_31_fixture_parses_source_rows() -> None:
     import pdfplumber
 
@@ -245,6 +281,7 @@ def test_parties_rollups_follow_configured_454_quarter_boundaries() -> None:
     assert settings.calendar_pattern == "454"
 
 
+@pytest.mark.django_db
 def test_parties_parser_assigns_exact_454_month_lengths_from_week_sequence() -> None:
     lines = ["Party Summary - Store Report '26 FW52"]
     lines.extend(f"ACT wk{week} 1 1 0 1 1 0 1 1 0" for week in range(1, 53))

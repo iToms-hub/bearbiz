@@ -1,6 +1,10 @@
+import pytest
+
+from apps.core.models import FiscalYearSettings
 from apps.reports.modules.ranking import RankingReport
 
 
+@pytest.mark.django_db
 def test_ranking_parser_extracts_fiscal_period_from_split_pdf_footer() -> None:
     report = RankingReport().parse(
         "\n".join(
@@ -20,3 +24,17 @@ def test_ranking_parser_extracts_fiscal_period_from_split_pdf_footer() -> None:
     }
     assert report.period_start == "2026-09-20"
     assert report.period_end == "2026-09-26"
+
+
+@pytest.mark.django_db
+def test_ranking_parser_propagates_fiscal_settings_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    from django.db import OperationalError
+
+    monkeypatch.setattr(
+        FiscalYearSettings,
+        "current",
+        classmethod(lambda cls: (_ for _ in ()).throw(OperationalError("settings unavailable"))),
+    )
+
+    with pytest.raises(OperationalError, match="settings unavailable"):
+        RankingReport().parse("FW: Week ending '26 FW01 week ending 02/07/2026")

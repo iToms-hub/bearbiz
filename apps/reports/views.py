@@ -28,7 +28,7 @@ from apps.core.navigation import report_date_tabs, report_tabs, shell_context
 from .catalog import report_config, report_label, report_relation, report_slug
 from .fiscal import as_dict, calculate_fiscal_week
 from .forms import ReportGoalForm, ReportUploadForm
-from .models import BonusClubSummary, GanttReport, GiftCardsSummary, MissedOpportunityReport, RankingSummary, ReportGoalSettings, ReportUpload, SegmentsSummary, WeeklySalesSummary
+from .models import BonusClubSummary, GanttReport, GiftCardsSummary, MissedOpportunityReport, ProductReport, RankingSummary, ReportGoalSettings, ReportUpload, SegmentsSummary, WeeklySalesSummary
 from .missed_ops_review import build_review_rows
 from .modules.bonus_club import BonusClubReport
 from .modules.gift_cards import GiftCardsReport
@@ -57,7 +57,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     dashboard_headers = _dashboard_weekly_report_headers()
     dashboard_rows = _weekly_report_rows(summaries)
     dashboard_rows.extend(_dashboard_trend_rows(summaries))
-    ranking_summaries = _dashboard_ranking_summaries(limit=4, target_period=target_period)
+    ranking_summaries = _dashboard_ranking_summaries(limit=4, target_period=target_period, through_target_period=True)
     ranking_headers = _dashboard_ranking_report_headers()
     ranking_rows = _ranking_report_rows(ranking_summaries)
     segment_summaries = _dashboard_segment_summaries(limit=1, target_period=target_period)
@@ -175,7 +175,7 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
         "weekly-sales-trend": {"headers": _weekly_report_headers(), "rows": _weekly_report_rows(weekly) + _dashboard_trend_rows(weekly)},
         "segments": {"headers": _segments_report_headers(), "rows": _dashboard_segment_rows(segment)},
         "parties": parties_dashboard_summary() if has_weekly_data else {"message": missing_note},
-        "product-top-10": product_dashboard_summary() if has_weekly_data else {"message": missing_note},
+        "product-top-10": product_dashboard_summary(selected_period),
         "rankings": {"headers": _ranking_report_headers(), "rows": _ranking_report_rows(ranking)},
         "missed-ops-review": _dashboard_missed_ops_review() if has_weekly_data else {"headers": [], "rows": [], "message": missing_note},
     }
@@ -2201,9 +2201,7 @@ def _dashboard_target_period(reference_date: date | None = None) -> dict[str, ob
     fiscal_week = int(settings.fiscal_week_for_date(anchor))
     configured_start = getattr(settings, "fiscal_year_start_date", None)
     if configured_start:
-        fiscal_start = configured_start
-        if anchor < fiscal_start:
-            fiscal_start = fiscal_start - timedelta(weeks=52)
+        fiscal_start = settings.fiscal_year_start_for_year(fiscal_year)
     else:
         fiscal_start = settings.fiscal_year_end(fiscal_year - 1) + timedelta(days=1)
     period_start = fiscal_start + timedelta(weeks=fiscal_week - 1)
@@ -2220,10 +2218,9 @@ def _dashboard_period_for_week(
     fiscal_week: int,
     reference_period: dict[str, object],
 ) -> dict[str, object]:
-    reference_start = cast(date, reference_period["period_start"])
-    reference_year = int(reference_period["fiscal_year"])
-    reference_week = int(reference_period["fiscal_week"])
-    period_start = reference_start + timedelta(weeks=(fiscal_year - reference_year) * 52 + fiscal_week - reference_week)
+    settings = FiscalYearSettings.current()
+    fiscal_start = settings.fiscal_year_start_for_year(fiscal_year)
+    period_start = fiscal_start + timedelta(weeks=fiscal_week - 1)
     return {
         "fiscal_year": fiscal_year,
         "fiscal_week": fiscal_week,
@@ -2234,7 +2231,7 @@ def _dashboard_period_for_week(
 
 def _dashboard_review_week_options(target_period: dict[str, object]) -> list[dict[str, object]]:
     week_keys = {(int(target_period["fiscal_year"]), int(target_period["fiscal_week"]))}
-    for model in (WeeklySalesSummary, RankingSummary, SegmentsSummary, GiftCardsSummary, BonusClubSummary):
+    for model in (WeeklySalesSummary, RankingSummary, SegmentsSummary, GiftCardsSummary, BonusClubSummary, ProductReport):
         week_keys.update(
             (int(fiscal_year), int(fiscal_week))
             for fiscal_year, fiscal_week in model.objects.values_list("fiscal_year", "fiscal_week").distinct()

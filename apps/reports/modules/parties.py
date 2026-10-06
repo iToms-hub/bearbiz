@@ -21,6 +21,17 @@ class PartiesReport:
             "fiscal_year": 2000 + int(fiscal_match.group(1)) if fiscal_match else None,
             "fiscal_week_number": int(fiscal_match.group(2)) if fiscal_match else None,
         }
+        from apps.core.models import FiscalYearSettings
+
+        settings = FiscalYearSettings.current()
+        configured_start = getattr(settings, "fiscal_year_start_date", None)
+        period_end = self._period_end(raw_text)
+        if period_end is not None and configured_start:
+            fiscal["fiscal_year"] = settings.fiscal_year_for_date(period_end)
+        # Older exports label the current fiscal year with its two-digit
+        # calendar year. Preserve any other parsed label as historical data.
+        elif configured_start and fiscal["fiscal_year"] == configured_start.year:
+            fiscal["fiscal_year"] = configured_start.year
         rows: list[dict[str, Any]] = []
         source_month: str | None = None
         source_months = {month_abbr[index].lower(): month_abbr[index] for index in range(1, 13)}
@@ -47,14 +58,9 @@ class PartiesReport:
             }
             week_number = len(rows) + 1
             week_date = ""
-            try:
-                from apps.core.models import FiscalYearSettings
-
-                start_date = FiscalYearSettings.current().fiscal_year_start_date
-                if start_date:
-                    week_date = (start_date + timedelta(weeks=week_number - 1)).isoformat()
-            except Exception:
-                pass
+            start_date = configured_start
+            if start_date:
+                week_date = (start_date + timedelta(weeks=week_number - 1)).isoformat()
             rows.append({
                 "status": status,
                 "week": cells[week_index].lower(),
@@ -68,6 +74,20 @@ class PartiesReport:
             })
         payload = {"parse_version": self.parse_version, "fiscal": fiscal, "rows": rows, "raw_text": raw_text}
         return ParsedReport("parties", "parties.pdf", None, None, payload, rows)
+
+    @staticmethod
+    def _period_end(raw_text: str):
+        match = re.search(r"(?:week ending|period end|ending)\s*[:#-]?\s*(\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2})", raw_text, re.I)
+        if not match:
+            return None
+        value = match.group(1)
+        for parser in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
+            try:
+                from datetime import datetime
+                return datetime.strptime(value, parser).date()
+            except ValueError:
+                continue
+        return None
 
     @staticmethod
     def _cells(line: str) -> list[str]:
@@ -89,11 +109,8 @@ class PartiesReport:
 
     @classmethod
     def _fiscal_month(cls, source_month: str | None, index: int) -> int:
-        try:
-            from apps.core.models import FiscalYearSettings
-            pattern = str(FiscalYearSettings.current().calendar_pattern or "454")
-        except Exception:
-            pattern = "454"
+        from apps.core.models import FiscalYearSettings
+        pattern = str(FiscalYearSettings.current().calendar_pattern or "454")
         month = 1
         remaining = index
         for weeks in (int(value) for _ in range(4) for value in pattern):

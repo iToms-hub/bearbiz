@@ -7,9 +7,9 @@ from django.test import Client
 from django.urls import reverse
 
 from apps.core.models import FiscalYearSettings, ReviewTemplate
-from apps.reports.models import PayrollWeek
+from apps.reports.models import PayrollWeek, ReportUpload, WeeklySalesSummary
 from apps.reports import payroll_views
-from apps.reports.payroll_views import FISCAL_MONTH_WEEK_COUNTS, _parse_decimal, payroll_dashboard_summary, payroll_fiscal_year_start, payroll_month_labels, payroll_month_layout, payroll_week_ending
+from apps.reports.payroll_views import FISCAL_MONTH_WEEK_COUNTS, _parse_decimal, current_payroll_month, payroll_dashboard_summary, payroll_fiscal_year_start, payroll_month_labels, payroll_month_layout, payroll_week_ending
 
 
 @pytest.mark.django_db
@@ -155,15 +155,36 @@ def test_payroll_rejects_non_finite_decimal_input() -> None:
 def test_payroll_calendar_normalizes_configured_start_and_supports_requested_year() -> None:
     FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 2))
 
-    assert payroll_fiscal_year_start(2027) == date(2026, 2, 1)
-    assert payroll_fiscal_year_start(2026) == date(2025, 2, 2)
-    assert payroll_week_ending(2027, 1) == date(2026, 2, 7)
+    assert payroll_fiscal_year_start(2026) == date(2026, 2, 1)
+    assert payroll_fiscal_year_start(2027) == date(2027, 1, 31)
+    assert payroll_week_ending(2027, 1) == date(2027, 2, 6)
+
+
+@pytest.mark.django_db
+def test_payroll_page_defaults_to_current_fiscal_month_and_preserves_explicit_month(
+    client: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    monkeypatch.setattr(payroll_views.timezone, "localdate", lambda: date(2026, 10, 6))
+
+    assert current_payroll_month() == 9
+    assert client.get(reverse("payroll")).context["selected_payroll_month"] == 9
+    assert client.get(reverse("payroll") + "?month=2").context["selected_payroll_month"] == 2
 
 
 @pytest.mark.django_db
 def test_payroll_is_available_on_dashboard_and_review_with_authoritative_week(client: Client) -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    upload = ReportUpload.objects.create(source_name="weekly-sales.pdf", source_file="weekly-sales.pdf")
+    WeeklySalesSummary.objects.create(
+        report_upload=upload,
+        fiscal_year=2026,
+        fiscal_week=35,
+        fiscal_period_start=date(2026, 9, 27),
+        fiscal_period_end=date(2026, 10, 3),
+    )
     PayrollWeek.objects.create(
-        fiscal_year=2027,
+        fiscal_year=2026,
         fiscal_month=2,
         fiscal_week=6,
         sun=Decimal("40"),
@@ -171,7 +192,7 @@ def test_payroll_is_available_on_dashboard_and_review_with_authoritative_week(cl
         labor_calculator_target_hours=Decimal("80"),
     )
 
-    summary = payroll_dashboard_summary(2027)
+    summary = payroll_dashboard_summary(2026)
     assert summary == {
         "week": "6", "week_ending": "03/14/26", "total_hours": "75.00",
         "target_hours": "80.00", "variance": "-5.00", "percent": "93.8%",

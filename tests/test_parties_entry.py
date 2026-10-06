@@ -1,11 +1,13 @@
+from datetime import date
 from decimal import Decimal
 
 import pytest
 from django.test import Client
 from django.urls import reverse
 
-from apps.core.models import ReviewTemplate
-from apps.reports.models import PartiesWeek
+from apps.core.models import FiscalYearSettings, ReviewTemplate
+from apps.reports import payroll_views
+from apps.reports.models import PartiesWeek, ReportUpload, WeeklySalesSummary
 from apps.reports.parties_views import parties_dashboard_summary, payroll_fiscal_year
 
 
@@ -34,6 +36,17 @@ def test_parties_page_has_month_tabs_grouped_headers_and_four_five_four_weeks(cl
     assert "initialSummary" in html
     assert "['quarter', 'year']" in html
     assert "justify-content: flex-start" in client.get(reverse("parties")).content.decode() or "parties-save-button" in html
+
+
+@pytest.mark.django_db
+def test_parties_page_defaults_to_current_fiscal_month_and_preserves_explicit_month(
+    client: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    monkeypatch.setattr(payroll_views.timezone, "localdate", lambda: date(2026, 10, 6))
+
+    assert client.get(reverse("parties")).context["selected_parties_month"] == 9
+    assert client.get(reverse("parties") + "?month=2").context["selected_parties_month"] == 2
 
 
 @pytest.mark.django_db
@@ -87,6 +100,15 @@ def test_parties_quarter_and_year_totals_stop_at_selected_month(client: Client) 
 
 @pytest.mark.django_db
 def test_dashboard_review_parties_module_uses_direct_entry_summary(client: Client) -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    upload = ReportUpload.objects.create(source_name="weekly-sales.pdf", source_file="weekly-sales.pdf")
+    WeeklySalesSummary.objects.create(
+        report_upload=upload,
+        fiscal_year=2026,
+        fiscal_week=35,
+        fiscal_period_start=date(2026, 9, 27),
+        fiscal_period_end=date(2026, 10, 3),
+    )
     client.post(reverse("parties"), {"month": "1", "held_current_1": "10", "held_previous_1": "7", "booked_current_1": "8", "booked_previous_1": "5"})
     template = ReviewTemplate.objects.create(name="Parties review", layout=[{"type": "parties", "title": "Parties"}])
 

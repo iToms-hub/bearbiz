@@ -40,17 +40,11 @@ def payroll_month_layout() -> dict[int, list[int]]:
 
 
 def payroll_fiscal_year_start(fiscal_year: int) -> date:
-    """Return the Sunday starting the requested fixed 52-week fiscal year."""
+    """Return the Sunday starting the requested fiscal year."""
     settings = FiscalYearSettings.current()
     if settings.fiscal_year_start_date:
-        configured_start = date(
-            settings.fiscal_year_start_date.year,
-            settings.fiscal_year_start_date.month,
-            settings.fiscal_year_start_date.day,
-        )
-        reference_fiscal_year = configured_start.year + 1
-        start = configured_start - timedelta(days=(configured_start.weekday() + 1) % 7)
-        return start + timedelta(days=(fiscal_year - reference_fiscal_year) * 52 * 7)
+        configured_start = settings.fiscal_year_start_for_year(fiscal_year)
+        return configured_start - timedelta(days=(configured_start.weekday() + 1) % 7)
     return settings.fiscal_year_end(fiscal_year - 1) + timedelta(days=1)
 
 

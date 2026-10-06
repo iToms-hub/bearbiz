@@ -21,9 +21,9 @@ def test_calculate_fiscal_week_rolls_fiscal_year_forward_on_start_boundary() -> 
     prior_year = calculate_fiscal_week(date(2024, 6, 24), date(2024, 6, 30), config=config)
     new_fiscal_year = calculate_fiscal_week(date(2024, 7, 1), datetime(2024, 7, 7, 18, 0), config=config)
 
-    assert prior_year.fiscal_year == 2024
+    assert prior_year.fiscal_year == 2023
     assert prior_year.fiscal_week_number == 53
-    assert new_fiscal_year.fiscal_year == 2025
+    assert new_fiscal_year.fiscal_year == 2024
     assert new_fiscal_year.fiscal_week_number == 1
 
 
@@ -31,7 +31,7 @@ def test_calculate_fiscal_week_supports_custom_week_ending_day() -> None:
     config = FiscalCalendarConfig(start_month=2, start_day=1, week_ending_weekday=4)
     fiscal_week = calculate_fiscal_week("2025-02-01", "2025-02-07", config=config)
 
-    assert fiscal_week.fiscal_year == 2026
+    assert fiscal_week.fiscal_year == 2025
     assert fiscal_week.fiscal_week_number == 1
     assert fiscal_week.week_ending_date == date(2025, 2, 7)
 

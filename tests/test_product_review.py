@@ -36,7 +36,7 @@ def test_dashboard_review_product_top10_module_renders_both_rankings_side_by_sid
         layout=[{"type": "product-top-10", "title": "Product Top 10"}],
     )
 
-    response = client.get(reverse("dashboard-review"), {"template": template.pk})
+    response = client.get(reverse("dashboard-review"), {"template": template.pk, "week": "2027-W31"})
 
     assert response.status_code == 200
     html = response.content.decode()
@@ -50,7 +50,7 @@ def test_dashboard_review_product_top10_module_renders_both_rankings_side_by_sid
     assert html.count("Reusable Backpacks") >= 1
     assert "12.50" in html
 
-    pdf_response = client.get(reverse("dashboard-review-pdf"), {"template": template.pk})
+    pdf_response = client.get(reverse("dashboard-review-pdf"), {"template": template.pk, "week": "2027-W31"})
     assert pdf_response.status_code == 200
     assert pdf_response["Content-Type"] == "application/pdf"
     assert pdf_response.content.startswith(b"%PDF")

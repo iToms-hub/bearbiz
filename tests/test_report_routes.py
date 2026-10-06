@@ -85,7 +85,7 @@ def test_weekly_sales_upload_history_and_download_routes(client: Client, tmp_pat
         assert 'class="upload-file-row"' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.4.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.5.0' in history_html
         assert "Uploaded reports" in history_html
         assert "Settings" in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
@@ -233,7 +233,7 @@ def test_report_goals_save_and_render_in_review_and_pdf(client: Client) -> None:
 def test_dashboard_review_rankings_shows_last_five_weeks(client: Client) -> None:
     for fiscal_week in range(30, 35):
         upload = ReportUpload.objects.create(
-            source_file=SimpleUploadedFile(f"ranking-{fiscal_week}.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf"),
+            source_file="ranking.pdf",
             source_name=f"ranking-{fiscal_week}.pdf",
             report_type="ranking",
             parse_status="parsed",
@@ -261,10 +261,12 @@ def test_dashboard_review_rankings_shows_last_five_weeks(client: Client) -> None
 
 
 @pytest.mark.django_db()
-def test_dashboard_shows_last_six_weekly_sales_rows_with_report_view_headers(client: Client, tmp_path: Path) -> None:
+def test_dashboard_shows_last_six_weekly_sales_rows_with_report_view_headers(client: Client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     media_root = tmp_path / "media"
     media_root.mkdir()
 
+    monkeypatch.setattr("apps.reports.views._current_date", lambda: date(2026, 9, 14))
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 1, 1))
     with override_settings(MEDIA_ROOT=media_root):
         for fiscal_week, week_end, sales in [
             (30, date(2026, 7, 26), 1000),
@@ -342,10 +344,12 @@ def test_dashboard_shows_last_six_weekly_sales_rows_with_report_view_headers(cli
 
 
 @pytest.mark.django_db()
-def test_dashboard_shows_last_four_ranking_reports(client: Client, tmp_path: Path) -> None:
+def test_dashboard_shows_last_four_ranking_reports(client: Client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     media_root = tmp_path / "media"
     media_root.mkdir()
 
+    monkeypatch.setattr("apps.reports.views._current_date", lambda: date(2026, 8, 31))
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 1, 1))
     with override_settings(MEDIA_ROOT=media_root):
         for fiscal_week, week_end, rank in [
             (30, date(2026, 7, 26), 5),
@@ -409,10 +413,12 @@ def test_dashboard_shows_last_four_ranking_reports(client: Client, tmp_path: Pat
 
 
 @pytest.mark.django_db()
-def test_dashboard_shows_last_segment_report_with_managers(client: Client, tmp_path: Path) -> None:
+def test_dashboard_shows_last_segment_report_with_managers(client: Client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     media_root = tmp_path / "media"
     media_root.mkdir()
 
+    monkeypatch.setattr("apps.reports.views._current_date", lambda: date(2026, 8, 31))
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 1, 1))
     with override_settings(MEDIA_ROOT=media_root):
         for fiscal_week, week_end, manager_name in [
             (30, date(2026, 7, 26), "Avery"),
@@ -499,10 +505,12 @@ def test_dashboard_shows_last_segment_report_with_managers(client: Client, tmp_p
 
 
 @pytest.mark.django_db()
-def test_dashboard_shows_last_week_store_bonus_club_and_gift_cards_metrics(client: Client, tmp_path: Path) -> None:
+def test_dashboard_shows_last_week_store_bonus_club_and_gift_cards_metrics(client: Client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     media_root = tmp_path / "media"
     media_root.mkdir()
 
+    monkeypatch.setattr("apps.reports.views._current_date", lambda: date(2026, 8, 31))
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 1, 1))
     with override_settings(MEDIA_ROOT=media_root):
         for fiscal_week, week_end, store_sales, bonus_pct, gc_bonus_pct in [
             (33, date(2026, 8, 16), 6100, 46.0, 9.5),
@@ -1396,7 +1404,7 @@ def test_bonus_club_upload_history_and_detail(client: Client, tmp_path: Path, mo
         assert 'Select a PDF' in history_html
         assert 'Upload file' in history_html
         assert 'Bearbiz' in history_html
-        assert '© 2026 · coded by Claire · itoms.org · v1.4.0' in history_html
+        assert '© 2026 · coded by Claire · itoms.org · v1.5.0' in history_html
         assert 'aria-label="Uploads tabs"' not in history_html
         assert 'aria-label="Section tabs"' not in history_html
 
@@ -1645,9 +1653,11 @@ def test_bonus_club_associate_range_view(client: Client, tmp_path: Path) -> None
 
 
 @pytest.mark.django_db()
-def test_timeframe_pdf_does_not_repeat_showing_totals(client: Client, tmp_path: Path) -> None:
+def test_timeframe_pdf_does_not_repeat_showing_totals(client: Client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     media_root = tmp_path / "media"
     media_root.mkdir()
+    monkeypatch.setattr("apps.reports.views._current_date", lambda: date(2026, 9, 14))
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 1, 1))
     with override_settings(MEDIA_ROOT=media_root):
         upload = ReportUpload.objects.create(
             source_file=SimpleUploadedFile("bonus-club.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf"),
