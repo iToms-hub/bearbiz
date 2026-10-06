@@ -249,7 +249,7 @@ safe_extract_media() {
   local archive=$1 destination=$2 staging parent backup_dir='' backup_path status
   require_command python3
   parent=$(dirname "$destination")
-  mkdir -p -- "$parent"
+  mkdir -p -- "$parent" "$destination"
   staging=$(mktemp -d "$parent/.media-restore.XXXXXX")
   if python3 - "$archive" "$staging" <<'PY'
 import os
@@ -303,47 +303,55 @@ PY
     return "$status"
   fi
 
-  if [[ -e "$destination" || -L "$destination" ]]; then
-    if backup_dir=$(mktemp -d "$parent/.media-restore-backup.XXXXXX"); then
-      backup_path="$backup_dir/original"
-    else
-      status=$?
-      rm -rf -- "$staging" || log "ERROR: failed to clean media staging directory: $staging"
-      return "$status"
-    fi
-    if mv -- "$destination" "$backup_path"; then
+  backup_dir=$(mktemp -d "$parent/.media-restore-backup.XXXXXX") || {
+    status=$?
+    rm -rf -- "$staging" || log "ERROR: failed to clean media staging directory: $staging"
+    return "$status"
+  }
+  backup_path="$backup_dir/original"
+  mkdir -p -- "$backup_path" || {
+    status=$?
+    rm -rf -- "$backup_dir" "$staging" || log "ERROR: failed to clean media restore staging: $backup_dir"
+    return "$status"
+  }
+
+  # MEDIA_ROOT may be a Docker volume mount point, which cannot itself be
+  # renamed. Preserve the mount and replace its contents instead.
+  shopt -s dotglob nullglob
+  local -a original_entries=("$destination"/*)
+  if ((${#original_entries[@]})); then
+    if mv -- "${original_entries[@]}" "$backup_path/"; then
       :
     else
       status=$?
-      rm -rf -- "$backup_dir" || log "ERROR: failed to clean media backup directory: $backup_dir"
-      rm -rf -- "$staging" || log "ERROR: failed to clean media staging directory: $staging"
+      shopt -u dotglob nullglob
+      rm -rf -- "$backup_dir" "$staging" || log "ERROR: failed to clean media restore staging: $backup_dir"
       return "$status"
     fi
   fi
 
-  if mv -- "$staging" "$destination"; then
-    if [[ -n "$backup_dir" ]]; then
-      if rm -rf -- "$backup_dir"; then
-        :
-      else
-        status=$?
-        log "ERROR: media restore succeeded but failed to clean backup directory: $backup_dir"
-        return "$status"
-      fi
-    fi
-    return 0
-  else
-    status=$?
-  fi
-  if [[ -n "$backup_dir" ]]; then
-    if mv -- "$backup_path" "$destination"; then
-      rm -rf -- "$backup_dir" || log "ERROR: failed to clean media backup directory: $backup_dir"
+  local -a staged_entries=("$staging"/*)
+  if ((${#staged_entries[@]})); then
+    if mv -- "${staged_entries[@]}" "$destination/"; then
+      :
     else
-      log "ERROR: media replacement failed and original media could not be restored from: $backup_path"
+      status=$?
+      local -a replacement_entries=("$destination"/*)
+      ((${#replacement_entries[@]})) && rm -rf -- "${replacement_entries[@]}"
+      local -a original_backup_entries=("$backup_path"/*)
+      if ((${#original_backup_entries[@]})); then
+        mv -- "${original_backup_entries[@]}" "$destination/" \
+          || log "ERROR: media replacement failed and original media could not be restored"
+      fi
+      shopt -u dotglob nullglob
+      rm -rf -- "$backup_dir" "$staging" || log "ERROR: failed to clean media restore staging: $backup_dir"
+      return "$status"
     fi
   fi
-  rm -rf -- "$staging" || log "ERROR: failed to clean media staging directory: $staging"
-  return "$status"
+  shopt -u dotglob nullglob
+
+  rm -rf -- "$backup_dir" "$staging" || log "WARNING: media restore succeeded but cleanup failed"
+  return 0
 }
 
 restore_database_with_rollback() {
