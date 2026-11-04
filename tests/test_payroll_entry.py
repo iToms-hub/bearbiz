@@ -9,6 +9,7 @@ from django.urls import reverse
 from apps.core.models import FiscalYearSettings, ReviewTemplate
 from apps.reports.models import PayrollWeek, ReportUpload, WeeklySalesSummary
 from apps.reports import payroll_views
+from apps.reports import views as report_views
 from apps.reports.payroll_views import FISCAL_MONTH_WEEK_COUNTS, _parse_decimal, current_payroll_month, payroll_dashboard_summary, payroll_fiscal_year_start, payroll_month_labels, payroll_month_layout, payroll_week_ending
 
 
@@ -173,8 +174,11 @@ def test_payroll_page_defaults_to_current_fiscal_month_and_preserves_explicit_mo
 
 
 @pytest.mark.django_db
-def test_payroll_is_available_on_dashboard_and_review_with_authoritative_week(client: Client) -> None:
+def test_payroll_is_available_on_dashboard_and_review_with_authoritative_week(
+    client: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
     FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    monkeypatch.setattr(report_views, "_current_date", lambda: date(2026, 10, 5))
     upload = ReportUpload.objects.create(source_name="weekly-sales.pdf", source_file="weekly-sales.pdf")
     WeeklySalesSummary.objects.create(
         report_upload=upload,

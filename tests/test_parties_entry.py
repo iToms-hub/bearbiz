@@ -7,6 +7,7 @@ from django.urls import reverse
 
 from apps.core.models import FiscalYearSettings, ReviewTemplate
 from apps.reports import payroll_views
+from apps.reports import views as report_views
 from apps.reports.models import PartiesWeek, ReportUpload, WeeklySalesSummary
 from apps.reports.parties_views import parties_dashboard_summary, payroll_fiscal_year
 
@@ -99,8 +100,11 @@ def test_parties_quarter_and_year_totals_stop_at_selected_month(client: Client) 
 
 
 @pytest.mark.django_db
-def test_dashboard_review_parties_module_uses_direct_entry_summary(client: Client) -> None:
+def test_dashboard_review_parties_module_uses_direct_entry_summary(
+    client: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
     FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    monkeypatch.setattr(report_views, "_current_date", lambda: date(2026, 10, 5))
     upload = ReportUpload.objects.create(source_name="weekly-sales.pdf", source_file="weekly-sales.pdf")
     WeeklySalesSummary.objects.create(
         report_upload=upload,

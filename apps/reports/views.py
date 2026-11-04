@@ -166,7 +166,8 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
     ranking = _dashboard_ranking_summaries(limit=5, target_period=selected_period, through_target_period=True)
     segment = _dashboard_segment_summaries(limit=1, target_period=selected_period)
     has_weekly_data = bool(weekly)
-    missing_note = _dashboard_empty_state([], selected_period) if not has_weekly_data else ""
+    selected_week_missing_note = _dashboard_empty_state([], selected_period)
+    missing_note = selected_week_missing_note if not has_weekly_data else ""
     module_data = {
         "bonus-gift-combined": _dashboard_bonus_gift_table() if has_weekly_data else {"headers": [], "rows": []},
         "bonus-club": {"value": _dashboard_store_percentage(_dashboard_latest_summary(BonusClubSummary, selected_period), "capture_rate"), "goal": _report_goal_display("bonus_club")},
@@ -174,8 +175,12 @@ def _dashboard_review_context(request: HttpRequest) -> dict[str, object]:
         "payroll": {"payroll": payroll_dashboard_summary() if has_weekly_data else None},
         "weekly-sales-trend": {"headers": _weekly_report_headers(), "rows": _weekly_report_rows(weekly) + _dashboard_trend_rows(weekly)},
         "segments": {"headers": _segments_report_headers(), "rows": _dashboard_segment_rows(segment)},
-        "parties": parties_dashboard_summary() if has_weekly_data else {"message": missing_note},
-        "product-top-10": product_dashboard_summary(selected_period),
+        "parties": (
+            (parties_dashboard_summary() or {"message": "No direct Parties data is available for the selected week."})
+            if has_weekly_data
+            else {"message": missing_note}
+        ),
+        "product-top-10": product_dashboard_summary(selected_period) or {"message": selected_week_missing_note},
         "rankings": {"headers": _ranking_report_headers(), "rows": _ranking_report_rows(ranking)},
         "missed-ops-review": _dashboard_missed_ops_review() if has_weekly_data else {"headers": [], "rows": [], "message": missing_note},
     }

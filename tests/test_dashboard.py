@@ -12,6 +12,7 @@ from apps.reports.base import ParsedReport
 from apps.core.models import FiscalYearSettings, ReviewTemplate
 from apps.reports.models import GanttImport, GanttReport, RankingSummary, ReportUpload
 from apps.reports.dashboard import build_six_week_dashboard, iso_week_key, week_windows
+from apps.reports import views as report_views
 from apps.reports.views import _dashboard_period_for_week, _dashboard_ranking_summaries, _dashboard_target_period
 
 standardize_fiscal_year_labels = import_module(
@@ -31,8 +32,9 @@ def make_report(day: date, **metrics: float) -> ParsedReport:
     )
 
 
-def test_dashboard_blanks_stale_data_and_identifies_missing_target_week(db) -> None:
+def test_dashboard_blanks_stale_data_and_identifies_missing_target_week(db, monkeypatch: pytest.MonkeyPatch) -> None:
     FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    monkeypatch.setattr(report_views, "_current_date", lambda: date(2026, 10, 5))
 
     response = Client().get(reverse("dashboard"))
 
@@ -43,8 +45,9 @@ def test_dashboard_blanks_stale_data_and_identifies_missing_target_week(db) -> N
     assert "No Payroll data available." in html
 
 
-def test_dashboard_review_defaults_to_actual_week_and_shows_missing_note(db) -> None:
+def test_dashboard_review_defaults_to_actual_week_and_shows_missing_note(db, monkeypatch: pytest.MonkeyPatch) -> None:
     FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    monkeypatch.setattr(report_views, "_current_date", lambda: date(2026, 10, 5))
     template = ReviewTemplate.objects.create(name="Weekly review", layout=[])
 
     response = Client().get(reverse("dashboard-review"), {"template": template.pk})
@@ -53,6 +56,22 @@ def test_dashboard_review_defaults_to_actual_week_and_shows_missing_note(db) -> 
     assert "review-week-select" in html
     assert "Fiscal Week 35 · 09/27/26 to 10/03/26" in html
     assert "Missing reports for Fiscal Week 35: 09/27/26 to 10/03/26." in html
+
+
+def test_dashboard_review_handles_missing_selected_product_week(db, monkeypatch: pytest.MonkeyPatch) -> None:
+    FiscalYearSettings.objects.create(fiscal_year_start_date=date(2026, 2, 1))
+    monkeypatch.setattr(report_views, "_current_date", lambda: date(2026, 10, 5))
+    template = ReviewTemplate.objects.create(
+        name="Product review",
+        layout=[{"type": "product-top-10", "title": "Product Top 10"}],
+    )
+
+    response = Client().get(reverse("dashboard-review"), {"template": template.pk})
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert "review-week-select" in html
+    assert "Missing reports for Fiscal Week" in html
 
 
 def test_dashboard_target_period_is_last_completed_fiscal_week(db) -> None:
