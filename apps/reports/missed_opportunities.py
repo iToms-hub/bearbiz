@@ -46,9 +46,32 @@ def parse_missed_opportunity_text(text: str, source_name: str = "") -> dict[str,
     if not week_match:
         raise ValueError("Could not find the fiscal week and week-ending date.")
 
+    # The exported report may concatenate multiple stores. Select the named
+    # Temecula section by its location heading, never by the street number.
+    section_heads = list(re.finditer(r"^Missed Opportunities Report\s*$", text, re.MULTILINE))
+    location_heads = list(re.finditer(r"^\d+\s+[^\n]+$", text, re.MULTILINE))
+    if section_heads:
+        boundaries = [(head.start(), section_heads[index + 1].start() if index + 1 < len(section_heads) else len(text)) for index, head in enumerate(section_heads)]
+        matching_sections = [bounds for bounds in boundaries if re.search(r"^\d+\s+The Promenade in Temecula\s*$", text[bounds[0]:bounds[1]], re.MULTILINE | re.IGNORECASE)]
+        if len(matching_sections) > 1:
+            raise ValueError("Temecula location section is ambiguous.")
+        if not matching_sections:
+            if len(section_heads) == 1 and not location_heads:
+                # A titled single-section legacy report may omit its location heading.
+                selected_text = text
+            else:
+                raise ValueError("Could not find the Temecula location section.")
+        else:
+            selected_text = text[matching_sections[0][0]:matching_sections[0][1]]
+    elif len(location_heads) > 1 or (location_heads and not re.search(r"^\d+\s+The Promenade in Temecula\s*$", text, re.MULTILINE | re.IGNORECASE)):
+        raise ValueError("Could not find the Temecula location section.")
+    else:
+        # Legacy single-section reports may omit both title and location heading.
+        selected_text = text
+
     day_rows: list[dict[str, Any]] = []
     summaries: dict[str, dict[str, Any]] = {}
-    for raw_line in text.splitlines():
+    for raw_line in selected_text.splitlines():
         line = " ".join(raw_line.split())
         day_match = DAY_ROW_RE.match(line)
         if day_match:
